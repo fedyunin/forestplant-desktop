@@ -1,45 +1,45 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
-<title>Лесной фонд</title>
+<title>Forest Fund</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <header class="top">
-  <div class="brand">Лесной фонд</div>
+  <div class="brand" data-i18n="app.title">Forest Fund</div>
   <nav class="tabs" id="tabs">
-    <button class="tab active" data-tab="data">Данные</button>
-    <button class="tab" data-tab="export">Экспорт</button>
-    <button class="tab" data-tab="settings">Настройки</button>
+    <button class="tab active" data-tab="data" data-i18n="tab.data">Data</button>
+    <button class="tab" data-tab="export" data-i18n="tab.export">Export</button>
+    <button class="tab" data-tab="settings" data-i18n="tab.settings">Settings</button>
   </nav>
-  <div class="dbinfo" id="dbinfo">база не открыта</div>
+  <div class="dbinfo" id="dbinfo" data-i18n="db.notOpen">no database open</div>
 </header>
 
 <main>
 
-<!-- ================================================ ДАННЫЕ -->
+<!-- ================================================ DATA -->
 <section class="page active" id="page-data">
   <div class="split">
     <aside class="side">
       <div class="side-h">
-        <input type="search" id="dSearch" placeholder="лесничество, учреждение, область…">
+        <input type="search" id="dSearch" data-i18n-ph="search.forestry">
       </div>
       <div class="side-list" id="dList"></div>
       <div class="side-f">
-        <button class="link" id="dClear">сбросить выбор</button>
-        <span id="dPicked">всё</span>
+        <button class="link" id="dClear" data-i18n="list.clearPick">clear selection</button>
+        <span id="dPicked" data-i18n="list.all">all</span>
       </div>
     </aside>
 
     <div class="main-col">
       <div class="bar">
         <div class="modes" id="dModes">
-          <button class="mode on" data-mode="filters">Фильтры</button>
-          <button class="mode" data-mode="sql">SQL</button>
+          <button class="mode on" data-mode="filters" data-i18n="mode.filters">Filters</button>
+          <button class="mode" data-mode="sql" data-i18n="mode.sql">SQL</button>
         </div>
         <span class="grow"></span>
         <span class="count" id="dCount"></span>
@@ -47,11 +47,15 @@
 
       <div id="dModeFilters">
         <div class="bar">
-          <label class="inline">Квартал <input id="dKvartal" placeholder="1,5-9"></label>
-          <label class="inline">Выдел <input id="dVydel" placeholder="2,3"></label>
-          <label class="inline">Площадь от <input id="dPloshadMin" type="number" step="0.1"></label>
-          <label class="inline">до <input id="dPloshadMax" type="number" step="0.1"></label>
-          <button class="ghost small" id="dMoreFilters">ещё фильтры</button>
+          <label class="inline"><span data-i18n="filter.kvartal">Block</span>
+            <input id="dKvartal" placeholder="1,5-9"></label>
+          <label class="inline"><span data-i18n="filter.vydel">Stand</span>
+            <input id="dVydel" placeholder="2,3"></label>
+          <label class="inline"><span data-i18n="filter.areaFrom">Area from</span>
+            <input id="dPloshadMin" type="number" step="0.1"></label>
+          <label class="inline"><span data-i18n="filter.areaTo">to</span>
+            <input id="dPloshadMax" type="number" step="0.1"></label>
+          <button class="ghost small" id="dMoreFilters" data-i18n="filter.more">more filters</button>
         </div>
         <div class="facets" id="dFacets" hidden></div>
       </div>
@@ -60,15 +64,13 @@
         <div class="sqlbox">
           <textarea id="dSqlText" rows="4" spellcheck="false"></textarea>
           <div class="bar">
-            <button class="primary" id="dSqlRun">Применить</button>
-            <button class="ghost small" id="dSqlFromFilters">взять из фильтров</button>
+            <button class="primary" id="dSqlRun" data-i18n="sql.apply">Apply</button>
+            <button class="ghost small" id="dSqlFromFilters" data-i18n="sql.fromFilters">take from filters</button>
             <select id="dSqlTables"></select>
             <span class="grow"></span>
             <span class="hint" id="dSqlInfo"></span>
           </div>
-          <p class="hint">Запрос, вернувший колонку <code>id</code>, становится выборкой:
-            её видно в таблице ниже и можно выгрузить. Запрос без <code>id</code> —
-            просто отчёт, выгружать нечего.</p>
+          <p class="hint" data-i18n="sql.hint"></p>
         </div>
       </div>
 
@@ -77,7 +79,7 @@
           <thead id="dHead"></thead>
           <tbody id="dBody"></tbody>
         </table>
-        <div class="empty" id="dEmpty" hidden>ничего не найдено</div>
+        <div class="empty" id="dEmpty" hidden data-i18n="data.empty">nothing found</div>
       </div>
 
       <div class="pager">
@@ -85,31 +87,31 @@
         <span id="dRange">—</span>
         <button class="ghost small" id="dNext">→</button>
         <span class="grow"></span>
-        <button class="ghost small" id="dToExport">Выгрузить эту выборку</button>
+        <button class="ghost small" id="dToExport" data-i18n="data.toExport">Export this selection</button>
       </div>
     </div>
 
     <aside class="detail" id="dDetail" hidden>
       <div class="detail-h">
-        <span id="dDetailTitle">Объект</span>
-        <button class="link" id="dDetailClose">закрыть</button>
+        <span id="dDetailTitle"></span>
+        <button class="link" id="dDetailClose" data-i18n="detail.close">close</button>
       </div>
       <div class="detail-body" id="dDetailBody"></div>
     </aside>
   </div>
 </section>
 
-<!-- ================================================ ЭКСПОРТ -->
+<!-- ================================================ EXPORT -->
 <section class="page" id="page-export">
   <div class="split">
     <aside class="side">
       <div class="side-h">
-        <input type="search" id="eSearch" placeholder="найти лесничество…">
+        <input type="search" id="eSearch" data-i18n-ph="search.findForestry">
       </div>
       <div class="side-list" id="eList"></div>
       <div class="side-f">
-        <button class="link" id="eAddFound">добавить найденные</button>
-        <button class="link" id="eClear">очистить</button>
+        <button class="link" id="eAddFound" data-i18n="list.addFound">add all found</button>
+        <button class="link" id="eClear" data-i18n="list.clear">clear</button>
       </div>
     </aside>
 
@@ -117,19 +119,22 @@
       <div class="picked" id="ePicked"></div>
 
       <div class="bar">
-        <label class="inline">Формат
-          <select id="eFormat"></select>
-        </label>
+        <label class="inline"><span data-i18n="export.format">Format</span>
+          <select id="eFormat"></select></label>
         <span class="hint" id="eHint"></span>
       </div>
 
       <div class="opts" id="eOpts"></div>
 
       <div class="bar">
-        <label class="inline">Квартал <input id="eKvartal" placeholder="1,5-9"></label>
-        <label class="inline">Выдел <input id="eVydel" placeholder="2,3"></label>
-        <label class="inline">Площадь от <input id="ePloshadMin" type="number" step="0.1"></label>
-        <label class="inline">до <input id="ePloshadMax" type="number" step="0.1"></label>
+        <label class="inline"><span data-i18n="filter.kvartal">Block</span>
+          <input id="eKvartal" placeholder="1,5-9"></label>
+        <label class="inline"><span data-i18n="filter.vydel">Stand</span>
+          <input id="eVydel" placeholder="2,3"></label>
+        <label class="inline"><span data-i18n="filter.areaFrom">Area from</span>
+          <input id="ePloshadMin" type="number" step="0.1"></label>
+        <label class="inline"><span data-i18n="filter.areaTo">to</span>
+          <input id="ePloshadMax" type="number" step="0.1"></label>
       </div>
 
       <canvas id="ePreview" width="560" height="130"></canvas>
@@ -137,43 +142,52 @@
   </div>
 
   <footer class="actions">
-    <div class="preview-line" id="eLine">выберите лесничества слева</div>
-    <button class="primary" id="eRun" disabled>Выгрузить</button>
+    <div class="preview-line" id="eLine" data-i18n="export.pickLeft"></div>
+    <button class="primary" id="eRun" disabled data-i18n="export.run">Export</button>
   </footer>
 </section>
 
-<!-- ================================================ НАСТРОЙКИ -->
+<!-- ================================================ SETTINGS -->
 <section class="page" id="page-settings">
   <div class="pad narrow">
 
-    <h3>Каталог данных</h3>
-    <p class="hint">Внутри лежат база <code>forest.sqlite</code> и сырой архив <code>raw/</code>.
-      Архив нужен только для синхронизации: база пересобирается из него, обратно — нет.</p>
+    <h3 data-i18n="settings.language">Language</h3>
+    <p class="hint" data-i18n="settings.languageHint"></p>
     <div class="path-row">
-      <code id="sDataDir">не выбран</code>
-      <button class="ghost small" id="sPickDir">Выбрать…</button>
-      <button class="ghost small" id="sReveal">Показать</button>
+      <select id="sLang" class="narrow-select">
+        <option value="system" data-i18n="settings.langSystem"></option>
+        <option value="ru" data-i18n="settings.langRu"></option>
+        <option value="en" data-i18n="settings.langEn"></option>
+      </select>
+      <span class="grow"></span>
+      <span class="hint" id="sLangSystem"></span>
+    </div>
+
+    <h3 data-i18n="settings.dataDir">Data folder</h3>
+    <p class="hint" data-i18n="settings.dataDirHint"></p>
+    <div class="path-row">
+      <code id="sDataDir" data-i18n="settings.notChosen">not selected</code>
+      <button class="ghost small" id="sPickDir" data-i18n="settings.choose">Choose…</button>
+      <button class="ghost small" id="sReveal" data-i18n="settings.reveal">Reveal</button>
     </div>
     <div class="stats" id="sStore"></div>
 
-    <h3>Учётные данные к ГИС</h3>
-    <p class="hint">Нужны только для синхронизации. Пароль шифруется системной
-      связкой ключей и в файлы не попадает.</p>
+    <h3 data-i18n="settings.creds">GIS credentials</h3>
+    <p class="hint" data-i18n="settings.credsHint"></p>
     <div class="path-row">
-      <span id="sCreds">не заданы</span>
-      <button class="ghost small" id="sCredsSet">Указать…</button>
-      <button class="ghost small" id="sCredsClear">Забыть</button>
+      <span id="sCreds" data-i18n="settings.credsNone">not set</span>
+      <button class="ghost small" id="sCredsSet" data-i18n="settings.credsSet">Set…</button>
+      <button class="ghost small" id="sCredsClear" data-i18n="settings.credsForget">Forget</button>
     </div>
 
-    <h3>Управление базой</h3>
+    <h3 data-i18n="settings.dbSection">Database management</h3>
     <div class="bar">
-      <button class="ghost" id="sCheck">Проверить обновления</button>
-      <button class="ghost" id="sPull" disabled>Докачать</button>
-      <button class="ghost" id="sRetry">Повторить упавшие</button>
-      <button class="ghost" id="sRebuild">Пересобрать из архива</button>
+      <button class="ghost" id="sCheck" data-i18n="settings.check">Check for updates</button>
+      <button class="ghost" id="sPull" disabled data-i18n="settings.pull">Fetch changes</button>
+      <button class="ghost" id="sRetry" data-i18n="settings.retry">Retry failed</button>
+      <button class="ghost" id="sRebuild" data-i18n="settings.rebuild">Rebuild from archive</button>
     </div>
-    <p class="hint">Проверка опрашивает отпечаток каждого слоя и ничего не качает.
-      Пересборка нужна после исправлений в разборе данных — она не обращается к серверу.</p>
+    <p class="hint" data-i18n="settings.dbHint"></p>
 
     <div class="progress" id="sProgress" hidden>
       <div class="bar-line"><div class="fill" id="sFill"></div></div>
@@ -181,34 +195,34 @@
     </div>
     <div id="sResult"></div>
 
-    <h3>Состояние архива</h3>
+    <h3 data-i18n="settings.archiveState">Archive state</h3>
     <div id="sBad"></div>
 
-    <h3>Схемы полей</h3>
-    <p class="hint">Имена полей в системе разнородны: номер выдела встречается как
-      НумерацияВыделов, Nвыд, NВыд, Нумерация_выделов. Здесь видно, какое поле в
-      какую роль легло — дважды именно здесь пряталась молчаливая ошибка.</p>
+    <h3 data-i18n="settings.schemas">Field schemas</h3>
+    <p class="hint" data-i18n="settings.schemasHint"></p>
     <div id="sSchemas"></div>
   </div>
 </section>
 
 </main>
 
-<!-- Учётные данные: отдельная форма, prompt() в Electron не работает -->
+<!-- Credentials: a form of our own, since prompt() does not work in Electron -->
 <div class="modal" id="credsModal" hidden>
   <form class="modal-box" id="credsForm">
-    <h3>Учётные данные к ГИС</h3>
-    <label>Логин<input id="credsUser" autocomplete="username" required></label>
-    <label>Пароль<input id="credsPass" type="password" autocomplete="current-password" required></label>
+    <h3 data-i18n="settings.creds">GIS credentials</h3>
+    <label><span data-i18n="settings.login">Login</span>
+      <input id="credsUser" autocomplete="username" required></label>
+    <label><span data-i18n="settings.password">Password</span>
+      <input id="credsPass" type="password" autocomplete="current-password" required></label>
     <div class="modal-actions">
-      <button type="button" class="ghost" id="credsCancel">Отмена</button>
-      <button type="submit" class="primary">Сохранить</button>
+      <button type="button" class="ghost" id="credsCancel" data-i18n="settings.cancel">Cancel</button>
+      <button type="submit" class="primary" data-i18n="settings.save">Save</button>
     </div>
   </form>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

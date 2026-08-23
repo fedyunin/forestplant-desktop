@@ -1,8 +1,8 @@
 /**
- * Точка входа рабочего процесса базы.
+ * Entry point of the database worker process.
  *
- * Обёртка на CommonJS по той же причине, что и у главного процесса: ESM-точка
- * входа работает из исходников, но в собранном приложении падает.
+ * A CommonJS wrapper for the same reason as the main process: an ESM entry
+ * point works from sources but crashes in the packaged application.
  */
 
 const path = require('node:path');

@@ -1,22 +1,24 @@
-/* Логика окна. Доступ к данным — только через window.api (см. preload). */
+/* Window logic. Data access goes only through window.api (see preload). */
+
+import { t, setLang, getLang, locale, applyDom } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
-const fmt = (n) => Number(n || 0).toLocaleString('ru-RU');
+const fmt = (n) => Number(n || 0).toLocaleString(locale());
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const size = (b) => (b > 1073741824 ? `${(b / 1073741824).toFixed(1)} ГБ`
-  : b > 1048576 ? `${Math.round(b / 1048576)} МБ` : `${fmt(b)} Б`);
+const size = (b) => (b > 1073741824 ? `${(b / 1073741824).toFixed(1)} ${t('unit.gb')}`
+  : b > 1048576 ? `${Math.round(b / 1048576)} ${t('unit.mb')}` : `${fmt(b)} ${t('unit.b')}`);
 
 const debounce = (fn, ms) => {
-  let t;
-  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  let timer;
+  return (...a) => { clearTimeout(timer); timer = setTimeout(() => fn(...a), ms); };
 };
 
 function toast(msg, kind = '') {
-  const t = $('toast');
-  t.textContent = msg;
-  t.className = `toast show ${kind}`;
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = `toast show ${kind}`;
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => { t.className = 'toast'; }, kind === 'err' ? 7000 : 3200);
+  toast._t = setTimeout(() => { el.className = 'toast'; }, kind === 'err' ? 7000 : 3200);
 }
 
 async function call(p, what) {
@@ -26,7 +28,7 @@ async function call(p, what) {
 }
 
 const state = {
-  forestries: [],   // плоский список лесничеств
+  forestries: [],   // flat list of forestries
   facets: {},
   columns: [],
   exporters: [],
@@ -35,7 +37,7 @@ const state = {
   sync: { changed: [], added: [], busy: false },
 };
 
-/* ---------------------------------------------------------------- вкладки */
+/* ---------------------------------------------------------------- tabs */
 
 $('tabs').addEventListener('click', (e) => {
   const b = e.target.closest('.tab');
@@ -47,11 +49,11 @@ $('tabs').addEventListener('click', (e) => {
 
 const goTab = (name) => document.querySelector(`.tab[data-tab="${name}"]`).click();
 
-/* ---------------------------------------------------------------- список лесничеств */
+/* ---------------------------------------------------------------- forestry list */
 
 /**
- * Один и тот же список используется на обеих вкладках. Поиск вместо дерева с
- * флажками: с полутысячей лесничеств отмечать их по одному невозможно.
+ * The same list serves both tabs. Search rather than a tree of checkboxes:
+ * with half a thousand forestries, ticking them one by one is impossible.
  */
 function renderList(box, picked, onToggle, filter = '') {
   const q = filter.trim().toLowerCase();
@@ -93,7 +95,7 @@ const visibleKeys = (filter) => {
     .map((f) => f.key);
 };
 
-/* ================================================================ ДАННЫЕ */
+/* ================================================================ DATA */
 
 function dataFilters() {
   return {
@@ -111,9 +113,11 @@ function dataFilters() {
 
 function renderDataList() {
   renderList($('dList'), state.data.picked, (key, el) => {
-    state.data.picked.has(key) ? state.data.picked.delete(key) : state.data.picked.add(key);
+    if (state.data.picked.has(key)) state.data.picked.delete(key);
+    else state.data.picked.add(key);
     el.classList.toggle('on');
-    $('dPicked').textContent = state.data.picked.size ? `выбрано ${state.data.picked.size}` : 'всё';
+    $('dPicked').textContent = state.data.picked.size
+      ? t('list.picked', { n: state.data.picked.size }) : t('list.all');
     state.data.page = 0;
     loadRows();
   }, $('dSearch').value);
@@ -122,27 +126,26 @@ function renderDataList() {
 $('dSearch').addEventListener('input', debounce(renderDataList, 150));
 $('dClear').addEventListener('click', () => {
   state.data.picked.clear();
-  $('dPicked').textContent = 'всё';
+  $('dPicked').textContent = t('list.all');
   renderDataList();
   state.data.page = 0;
   loadRows();
-  fillSqlTables();
 });
 
 const loadRows = debounce(async () => {
   const { page, limit, sort, desc } = state.data;
   let res;
   try {
-    res = await call(window.api.db.browse(dataFilters(), { offset: page * limit, limit, sort, desc }), 'Данные');
+    res = await call(window.api.db.browse(dataFilters(), { offset: page * limit, limit, sort, desc }), t('tab.data'));
   } catch { return; }
 
-  $('dCount').textContent = `${fmt(res.total)} объектов`;
+  $('dCount').textContent = t('data.objects', { n: fmt(res.total) });
   $('dEmpty').hidden = res.rows.length > 0;
 
   $('dHead').innerHTML = `<tr>${state.columns.map((c) => {
     const on = sort === c.key ? ' class="sorted"' : '';
     const mark = sort === c.key ? (desc ? ' ↓' : ' ↑') : '';
-    return `<th data-key="${c.key}"${on}>${esc(c.label)}${mark}</th>`;
+    return `<th data-key="${c.key}"${on}>${esc(t(`col.${c.key}`))}${mark}</th>`;
   }).join('')}</tr>`;
 
   $('dBody').innerHTML = res.rows.map((r) => `<tr data-id="${r.id}">${
@@ -153,14 +156,16 @@ const loadRows = debounce(async () => {
     }).join('')}</tr>`).join('');
 
   const from = res.total ? page * limit + 1 : 0;
-  $('dRange').textContent = `${fmt(from)}–${fmt(Math.min(res.total, (page + 1) * limit))} из ${fmt(res.total)}`;
+  $('dRange').textContent = t('data.range', {
+    from: fmt(from), to: fmt(Math.min(res.total, (page + 1) * limit)), total: fmt(res.total),
+  });
   $('dPrev').disabled = page === 0;
   $('dNext').disabled = (page + 1) * limit >= res.total;
 }, 200);
 
 $('dHead').addEventListener('click', (e) => {
   const th = e.target.closest('th');
-  if (!th) return;
+  if (!th || !th.dataset.key) return;
   const k = th.dataset.key;
   state.data.desc = state.data.sort === k ? !state.data.desc : false;
   state.data.sort = k;
@@ -168,9 +173,9 @@ $('dHead').addEventListener('click', (e) => {
   loadRows();
 });
 
-$('dBody').addEventListener('click', async (e) => {
+$('dBody').addEventListener('click', (e) => {
   const tr = e.target.closest('tr');
-  if (!tr) return;
+  if (!tr || !tr.dataset.id) return;
   document.querySelectorAll('#dBody tr').forEach((x) => x.classList.toggle('on', x === tr));
   showFeature(tr.dataset.id);
 });
@@ -189,42 +194,49 @@ $('dMoreFilters').addEventListener('click', () => {
 });
 
 function renderFacets() {
-  const titles = { poroda: 'Порода', kat_zem: 'Категория земель', bonitet: 'Бонитет' };
-  $('dFacets').innerHTML = Object.entries(titles).map(([k, t]) => `
-    <div class="facet-group"><h4>${t}</h4><div class="chips" data-col="${k}">${
-    (state.facets[k] || []).slice(0, 40).map((it) => `<button class="chip" data-v="${esc(it.value)}">${esc(it.value.trim() || '—')}<span class="n">${fmt(it.count)}</span></button>`).join('')
-  }</div></div>`).join('');
+  const titles = { poroda: t('filter.poroda'), kat_zem: t('filter.katZem'), bonitet: t('filter.bonitet') };
+  $('dFacets').innerHTML = Object.entries(titles).map(([k, title]) => `
+    <div class="facet-group"><h4>${esc(title)}</h4><div class="chips" data-col="${k}">${
+  (state.facets[k] || []).slice(0, 40).map((it) => {
+    const on = state.data.chosen[k]?.has(it.value) ? ' on' : '';
+    return `<button class="chip${on}" data-v="${esc(it.value)}">${esc(it.value.trim() || '—')}<span class="n">${fmt(it.count)}</span></button>`;
+  }).join('')
+}</div></div>`).join('');
   $('dFacets').dataset.built = '1';
-
-  $('dFacets').addEventListener('click', (e) => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    const col = chip.closest('.chips').dataset.col;
-    const v = chip.dataset.v;
-    state.data.chosen[col] = state.data.chosen[col] || new Set();
-    state.data.chosen[col].has(v) ? state.data.chosen[col].delete(v) : state.data.chosen[col].add(v);
-    chip.classList.toggle('on');
-    state.data.page = 0;
-    loadRows();
-  });
 }
+
+$('dFacets').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  const col = chip.closest('.chips').dataset.col;
+  const v = chip.dataset.v;
+  state.data.chosen[col] = state.data.chosen[col] || new Set();
+  if (state.data.chosen[col].has(v)) state.data.chosen[col].delete(v);
+  else state.data.chosen[col].add(v);
+  chip.classList.toggle('on');
+  state.data.page = 0;
+  loadRows();
+});
 
 async function showFeature(id) {
   let f;
-  try { f = await call(window.api.db.feature(id), 'Объект'); } catch { return; }
+  try { f = await call(window.api.db.feature(id), t('detail.parsed')); } catch { return; }
   $('dDetail').hidden = false;
-  $('dDetailTitle').textContent = `кв ${f.row.kvartal ?? '—'} выд ${f.row.vydel ?? '—'}`;
+  $('dDetailTitle').textContent = t('detail.title', {
+    kvartal: f.row.kvartal ?? '—', vydel: f.row.vydel ?? '—',
+  });
 
   const skip = new Set(['id', 'layer_key', 'les_key', 'minx', 'miny', 'maxx', 'maxy']);
   const canon = Object.entries(f.row).filter(([k, v]) => !skip.has(k) && v !== null && v !== '');
   const raw = Object.entries(f.props).filter(([, v]) => v !== null && String(v).trim() !== '');
 
   const dl = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt title="${esc(k)}">${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
-  $('dDetailBody').innerHTML = `<h4>Разобранные поля</h4>${dl(canon)}`
-    + `<h4>Как в источнике</h4>${dl(raw)}`
-    + `<h4>Охват</h4>${dl([['геометрия', f.hasGeom ? 'есть' : 'нет'],
-      ['долгота', `${f.bbox.minx?.toFixed(5)} … ${f.bbox.maxx?.toFixed(5)}`],
-      ['широта', `${f.bbox.miny?.toFixed(5)} … ${f.bbox.maxy?.toFixed(5)}`]])}`;
+  $('dDetailBody').innerHTML = `<h4>${t('detail.parsed')}</h4>${dl(canon)}`
+    + `<h4>${t('detail.raw')}</h4>${dl(raw)}`
+    + `<h4>${t('detail.extent')}</h4>${dl([
+      [t('detail.geometry'), f.hasGeom ? t('detail.yes') : t('detail.no')],
+      [t('detail.lon'), `${f.bbox.minx?.toFixed(5)} … ${f.bbox.maxx?.toFixed(5)}`],
+      [t('detail.lat'), `${f.bbox.miny?.toFixed(5)} … ${f.bbox.maxy?.toFixed(5)}`]])}`;
 }
 
 $('dDetailClose').addEventListener('click', () => { $('dDetail').hidden = true; });
@@ -242,14 +254,15 @@ $('dToExport').addEventListener('click', () => {
   refreshPreview();
 });
 
-/* ---------------------------------------------------------------- SQL как фильтр */
+/* ---------------------------------------------------------------- SQL as a filter */
 
 /**
- * Второй способ собрать ту же выборку.
+ * The second way of building the same selection.
  *
- * Раньше SQL жил во всплывающем окне и был тупиком: показал таблицу — и всё.
- * Теперь запрос, вернувший колонку id, сужает выборку наравне с фильтрами,
- * поэтому дальше работает общий путь: просмотр, оценка, экспорт.
+ * SQL used to live in a popup and was a dead end: it showed a table and that
+ * was all. Now a query returning an id column narrows the selection just like
+ * the filters do, so the shared path continues from there: browsing, the
+ * estimate, the export.
  */
 $('dModes').addEventListener('click', (e) => {
   const b = e.target.closest('.mode');
@@ -265,7 +278,7 @@ $('dModes').addEventListener('click', (e) => {
 $('dSqlFromFilters').addEventListener('click', async () => {
   const was = state.data.mode;
   state.data.mode = 'filters';
-  const sql = await call(window.api.db.filtersAsSql(dataFilters()), 'Фильтры в SQL');
+  const sql = await call(window.api.db.filtersAsSql(dataFilters()), t('mode.sql'));
   state.data.mode = was;
   $('dSqlText').value = sql;
 });
@@ -273,22 +286,30 @@ $('dSqlFromFilters').addEventListener('click', async () => {
 $('dSqlRun').addEventListener('click', async () => {
   const sql = $('dSqlText').value.trim();
   if (!sql) return;
-  $('dSqlInfo').textContent = 'выполняю…';
+  $('dSqlInfo').textContent = t('sql.running');
   let r;
-  try { r = await call(window.api.db.query(sql), 'Запрос'); }
-  catch { $('dSqlInfo').textContent = ''; return; }
+  try { r = await call(window.api.db.query(sql), t('mode.sql')); } catch {
+    $('dSqlInfo').textContent = '';
+    return;
+  }
 
   if (r.isSelection) {
-    // Запрос вернул id — это выборка, дальше всё как с фильтрами
+    // The query returned ids — from here on it behaves like the filters
     state.data.sql = sql;
     state.data.page = 0;
-    $('dSqlInfo').textContent = `выборка: ${fmt(r.total)} объектов за ${r.ms} мс`;
+    // dataset holds the same numbers in a language-neutral form: the window
+    // self-check reads them instead of parsing the visible text
+    $('dSqlInfo').dataset.kind = 'selection';
+    $('dSqlInfo').dataset.total = r.total;
+    $('dSqlInfo').textContent = t('sql.selection', { n: fmt(r.total), ms: r.ms });
     loadRows();
   } else {
-    // Отчёт: показываем как есть и честно говорим, что выгружать нечего
+    // A report: show it as it is and say plainly that there is nothing to export
     state.data.sql = null;
-    $('dSqlInfo').textContent = `отчёт: ${fmt(r.rows.length)} строк за ${r.ms} мс`
-      + (r.truncated ? ' (обрезано)' : '') + ' · нет колонки id, выгрузить нельзя';
+    $('dSqlInfo').dataset.kind = 'report';
+    $('dSqlInfo').dataset.total = r.rows.length;
+    $('dSqlInfo').textContent = t('sql.report', { n: fmt(r.rows.length), ms: r.ms })
+      + (r.truncated ? t('sql.truncated') : '') + t('sql.reportNoExport');
     $('dCount').textContent = '';
     $('dEmpty').hidden = r.rows.length > 0;
     $('dHead').innerHTML = `<tr>${r.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>`;
@@ -296,26 +317,28 @@ $('dSqlRun').addEventListener('click', async () => {
       const v = row[c];
       return `<td class="${typeof v === 'number' ? 'num' : ''}">${esc(v ?? '—')}</td>`;
     }).join('')}</tr>`).join('');
-    $('dRange').textContent = `${fmt(r.rows.length)} строк отчёта`;
+    $('dRange').textContent = t('sql.reportRows', { n: fmt(r.rows.length) });
     $('dPrev').disabled = true;
     $('dNext').disabled = true;
   }
 });
 
 async function fillSqlTables() {
-  const t = await call(window.api.db.tables(), 'Таблицы');
-  $('dSqlTables').innerHTML = '<option value="">таблицы…</option>'
-    + t.map((x) => `<option value="${esc(x.name)}">${esc(x.name)} (${x.columns.length})</option>`).join('');
-  $('dSqlTables').addEventListener('change', (e) => {
-    if (e.target.value) $('dSqlText').value = `SELECT * FROM ${e.target.value} LIMIT 100`;
-  });
+  const tables = await call(window.api.db.tables(), t('sql.tables'));
+  $('dSqlTables').innerHTML = `<option value="">${t('sql.tables')}</option>`
+    + tables.map((x) => `<option value="${esc(x.name)}">${esc(x.name)} (${x.columns.length})</option>`).join('');
 }
 
-/* ================================================================ ЭКСПОРТ */
+$('dSqlTables').addEventListener('change', (e) => {
+  if (e.target.value) $('dSqlText').value = `SELECT * FROM ${e.target.value} LIMIT 100`;
+});
+
+/* ================================================================ EXPORT */
 
 function renderExpList() {
   renderList($('eList'), state.exp.picked, (key, el) => {
-    state.exp.picked.has(key) ? state.exp.picked.delete(key) : state.exp.picked.add(key);
+    if (state.exp.picked.has(key)) state.exp.picked.delete(key);
+    else state.exp.picked.add(key);
     el.classList.toggle('on');
     renderPicked();
     refreshPreview();
@@ -324,6 +347,8 @@ function renderExpList() {
 
 function renderPicked() {
   const byKey = new Map(state.forestries.map((f) => [f.key, f]));
+  // the empty-state text lives in the attribute: the stylesheet knows no language
+  $('ePicked').dataset.empty = t('export.nothingPicked');
   $('ePicked').innerHTML = [...state.exp.picked].map((k) => {
     const f = byKey.get(k);
     return `<span class="tag" data-key="${k}"><b>${esc(f?.name || k)}</b>
@@ -350,10 +375,13 @@ $('eClear').addEventListener('click', () => {
   renderExpList(); renderPicked(); refreshPreview();
 });
 
-/** Настройки формата строятся из его же описания. */
+/**
+ * Format settings are built from the format's own description. Labels there
+ * are translation keys, so a format stays free of interface language.
+ */
 function renderOptions() {
   const ex = state.exporters.find((e) => e.id === state.exp.format);
-  $('eHint').textContent = ex?.hint || '';
+  $('eHint').textContent = ex ? t(ex.hint) : '';
   const o = state.exp.options;
 
   const checks = ex.options.filter((x) => x.type === 'bool');
@@ -361,18 +389,18 @@ function renderOptions() {
 
   const field = (x) => {
     if (x.type === 'select') {
-      return `<label class="inline">${esc(x.label)}<select data-k="${x.key}">${
-        x.choices.map((c) => `<option value="${esc(c.value)}"${o[x.key] === c.value ? ' selected' : ''}>${esc(c.label)}</option>`).join('')}</select></label>`;
+      return `<label class="inline">${esc(t(x.label))}<select data-k="${x.key}">${
+        x.choices.map((c) => `<option value="${esc(c.value)}"${o[x.key] === c.value ? ' selected' : ''}>${esc(t(c.label))}</option>`).join('')}</select></label>`;
     }
     if (x.type === 'color') {
-      return `<label class="inline">${esc(x.label)}<input type="color" data-k="${x.key}" value="${esc(o[x.key])}"></label>`;
+      return `<label class="inline">${esc(t(x.label))}<input type="color" data-k="${x.key}" value="${esc(o[x.key])}"></label>`;
     }
-    return `<label class="inline">${esc(x.label)}<input type="number" data-k="${x.key}" value="${esc(o[x.key])}"
+    return `<label class="inline">${esc(t(x.label))}<input type="number" data-k="${x.key}" value="${esc(o[x.key])}"
       ${x.min != null ? `min="${x.min}"` : ''} ${x.max != null ? `max="${x.max}"` : ''} ${x.step ? `step="${x.step}"` : ''}></label>`;
   };
 
   $('eOpts').innerHTML = `<div class="opt-row">${rest.slice(0, 2).map(field).join('')}</div>`
-    + `<div class="opt-row opt-checks">${checks.map((x) => `<label><input type="checkbox" data-k="${x.key}"${o[x.key] ? ' checked' : ''}> ${esc(x.label)}</label>`).join('')}</div>`
+    + `<div class="opt-row opt-checks">${checks.map((x) => `<label><input type="checkbox" data-k="${x.key}"${o[x.key] ? ' checked' : ''}> ${esc(t(x.label))}</label>`).join('')}</div>`
     + `<div class="opt-row">${rest.slice(2).map(field).join('')}</div>`;
 
   $('eOpts').querySelectorAll('[data-k]').forEach((el) => {
@@ -386,7 +414,13 @@ function renderOptions() {
   drawPreview();
 }
 
-$('eFormat').addEventListener('change', async () => {
+function renderFormats() {
+  $('eFormat').innerHTML = state.exporters
+    .map((e) => `<option value="${e.id}"${e.id === state.exp.format ? ' selected' : ''}>${esc(t(e.name))}</option>`)
+    .join('');
+}
+
+$('eFormat').addEventListener('change', () => {
   state.exp.format = $('eFormat').value;
   const ex = state.exporters.find((e) => e.id === state.exp.format);
   state.exp.options = Object.fromEntries(ex.options.map((x) => [x.key, x.value]));
@@ -426,22 +460,27 @@ function drawPreview() {
   ctx.fillStyle = o.vdColor; ctx.font = '11px sans-serif';
   ctx.fillText('7', 130, 50); ctx.fillText('12', 270, 50); ctx.fillText('3', 410, 50);
   ctx.fillStyle = o.kvColor; ctx.font = 'bold 12px sans-serif';
-  ctx.fillText('КВ-29', 230, 20);
+  ctx.fillText(getLang() === 'ru' ? 'КВ-29' : 'BL-29', 230, 20);
 }
 
 const refreshPreview = debounce(async () => {
-  if (state.exp.picked.size === 0) {
-    $('eLine').textContent = 'выберите лесничества слева';
+  if (state.exp.picked.size === 0 && !state.exp.sql) {
+    $('eLine').dataset.vydels = 0;
+    $('eLine').textContent = t('export.pickLeft');
     $('eRun').disabled = true;
     return;
   }
-  $('eLine').textContent = 'считаю…';
+  $('eLine').textContent = t('export.counting');
   let p;
-  try { p = await call(window.api.exportData.preview(expFilters(), state.exp.options), 'Оценка'); } catch { return; }
+  try { p = await call(window.api.exportData.preview(expFilters(), state.exp.options), t('tab.export')); } catch { return; }
+  $('eLine').dataset.vydels = p.vydels;
   $('eLine').innerHTML = p.vydels === 0
-    ? 'под фильтр ничего не попадает'
-    : `<b>${fmt(p.vydels)}</b> выделов, <b>${fmt(p.vertices)}</b> вершин → примерно <b>${p.estimatedFiles}</b> файл(ов)`
-      + (p.estimatedFiles > p.groups ? ' <span class="warn">(с разбивкой)</span>' : '');
+    ? t('export.nothingMatches')
+    : t('export.estimate', {
+      vydels: `<b>${fmt(p.vydels)}</b>`,
+      vertices: `<b>${fmt(p.vertices)}</b>`,
+      files: `<b>${p.estimatedFiles}</b>`,
+    }) + (p.estimatedFiles > p.groups ? ` <span class="warn">${t('export.willSplit')}</span>` : '');
   $('eRun').disabled = p.vydels === 0 || state.exp.busy;
 }, 200);
 
@@ -457,114 +496,129 @@ $('eRun').addEventListener('click', async () => {
   if (state.exp.busy) return;
   try {
     if (!state.exp.outDir) {
-      state.exp.outDir = await call(window.api.exportData.pickDir(), 'Выбор каталога');
+      state.exp.outDir = await call(window.api.exportData.pickDir(), t('tab.export'));
       if (!state.exp.outDir) return;
     }
     state.exp.busy = true;
     $('eRun').disabled = true;
-    $('eRun').textContent = 'Выгружаю…';
+    $('eRun').textContent = t('export.running');
 
     const res = await call(window.api.exportData.run(
       state.exp.format, expFilters(), state.exp.options, state.exp.outDir,
-    ), 'Экспорт');
+    ), t('tab.export'));
 
     const skipped = res.skippedGeom
-      ? ` <span class="warn">· пропущено с битой геометрией: ${fmt(res.skippedGeom)}</span>` : '';
-    $('eLine').innerHTML = `готово: <b>${fmt(res.vydels)}</b> выделов в <b>${res.files.length}</b> файл(ах)${skipped}`;
-    toast(`Выгружено ${fmt(res.vydels)} выделов в ${res.files.length} файл(ов)`, 'ok');
+      ? ` <span class="warn">${t('export.skippedGeom', { n: fmt(res.skippedGeom) })}</span>` : '';
+    $('eLine').innerHTML = t('export.done', {
+      vydels: `<b>${fmt(res.vydels)}</b>`, files: `<b>${res.files.length}</b>`,
+    }) + skipped;
+    toast(t('export.toast', { vydels: fmt(res.vydels), files: res.files.length }), 'ok');
     window.api.reveal(res.indexFile || res.outDir);
-  } catch { /* показано */ } finally {
+  } catch { /* already reported */ } finally {
     state.exp.busy = false;
-    $('eRun').textContent = 'Выгрузить';
+    $('eRun').textContent = t('export.run');
     refreshPreview();
   }
 });
 
-/* ================================================================ НАСТРОЙКИ */
+/* ================================================================ SETTINGS */
+
+const stats = (pairs) => pairs
+  .map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${esc(k)}</div></div>`)
+  .join('');
 
 async function loadSettings() {
   let s;
-  try { s = await call(window.api.settings.status(), 'Настройки'); }
-  catch (e) { console.error('настройки не прочитались:', e.message); return; }
-  $('sDataDir').textContent = s.dataDir || 'не выбран';
-  $('sCreds').textContent = s.creds.saved ? `${s.creds.username} · ${s.creds.source}` : 'не заданы';
+  try { s = await call(window.api.settings.status(), t('tab.settings')); } catch { return; }
 
-  $('sStore').innerHTML = [
-    ['База', s.dbExists ? size(s.dbSize) : 'нет'],
-    ['Архив', s.rawExists ? size(s.rawSize) : 'нет'],
-    ['Слоёв в архиве', fmt(s.rawLayers)],
-  ].map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${k}</div></div>`).join('');
+  $('sDataDir').textContent = s.dataDir || t('settings.notChosen');
+  $('sCreds').textContent = s.creds.saved
+    ? `${s.creds.username} · ${s.creds.source}` : t('settings.credsNone');
+  $('sLang').value = s.language || 'system';
+  $('sLangSystem').textContent = s.systemLocale || '';
 
+  // The whole block is written at once: with two assignments around an await,
+  // a second call to loadSettings — the tab and the language switch both make
+  // one — left the summary half-drawn.
+  const figures = [
+    [t('stat.db'), s.dbExists ? size(s.dbSize) : t('stat.none')],
+    [t('stat.archive'), s.rawExists ? size(s.rawSize) : t('stat.none')],
+    [t('stat.archiveLayers'), fmt(s.rawLayers)],
+  ];
   if (s.dbExists) {
-    const sum = await call(window.api.db.summary(), 'Сводка');
-    $('sStore').innerHTML += [
-      ['Объектов', fmt(sum.features)], ['Выделов', fmt(sum.vydels)],
-      ['Кварталов', fmt(sum.kvartaly)], ['Лесничеств', fmt(sum.forestries)],
-      ['Областей', fmt(sum.oblasts)], ['Версия схемы', sum.schema],
-    ].map(([k, v]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="k">${k}</div></div>`).join('');
+    const sum = await call(window.api.db.summary(), t('settings.summary'));
+    figures.push(
+      [t('stat.objects'), fmt(sum.features)], [t('stat.vydels'), fmt(sum.vydels)],
+      [t('stat.kvartaly'), fmt(sum.kvartaly)], [t('stat.forestries'), fmt(sum.forestries)],
+      [t('stat.oblasts'), fmt(sum.oblasts)], [t('stat.schemaVersion'), sum.schema],
+    );
   }
+  $('sStore').innerHTML = stats(figures);
 
   try {
-    const m = await call(window.api.sync.manifest(), 'Архив');
+    const m = await call(window.api.sync.manifest(), t('settings.archiveState'));
     const noRights = m.bad.filter((b) => b.noRights);
     const other = m.bad.filter((b) => !b.noRights);
     $('sBad').innerHTML = m.bad.length === 0
-      ? '<p class="hint">Все слои забраны полностью.</p>'
-      : `<p class="hint">Из ${fmt(m.layers)} слоёв недоступно ${m.bad.length}: нет прав ${noRights.length}, прочих ${other.length}.
-         Отказ по правам повторами не лечится.</p>
-         <table class="grid"><tr><th>Слой</th><th>Область</th><th>Причина</th></tr>${
-  [...other, ...noRights].slice(0, 60).map((b) => `<tr><td>${esc(b.key)}</td><td>${esc(b.oblast || '')}</td><td>${b.noRights ? 'нет прав (403)' : esc(b.error)}</td></tr>`).join('')}</table>`;
-  } catch { $('sBad').innerHTML = '<p class="hint">Архив недоступен.</p>'; }
+      ? `<p class="hint">${t('sync.allFetched')}</p>`
+      : `<p class="hint">${t('sync.badSummary', {
+        layers: fmt(m.layers), bad: m.bad.length, noRights: noRights.length, other: other.length,
+      })}</p>
+         <table class="grid"><tr><th>${t('sync.layer')}</th><th>${t('sync.oblast')}</th><th>${t('sync.reason')}</th></tr>${
+  [...other, ...noRights].slice(0, 60).map((b) => `<tr><td>${esc(b.key)}</td><td>${esc(b.oblast || '')}</td><td>${b.noRights ? t('sync.noRights') : esc(b.error)}</td></tr>`).join('')}</table>`;
+  } catch { $('sBad').innerHTML = `<p class="hint">${t('sync.archiveUnavailable')}</p>`; }
 
-  const list = await call(window.api.db.schemas(), 'Схемы');
-  const ROLES = {
-    les: 'лесничество', kv: '№ квартала', vd: '№ выдела', comp: 'учреждение',
-    ploshad: 'площадь', poroda: 'порода', bonitet: 'бонитет',
-    tip_lesa: 'тип леса', kat_zem: 'категория земель', kat_zasch: 'защитность',
-  };
-  $('sSchemas').innerHTML = list.slice(0, 12).map((s2) => `
+  const list = await call(window.api.db.schemas(), t('settings.schemas'));
+  const roles = ['les', 'kv', 'vd', 'comp', 'ploshad', 'poroda', 'bonitet', 'tip_lesa', 'kat_zem', 'kat_zasch'];
+  $('sSchemas').innerHTML = list.slice(0, 12).map((sc) => `
     <div class="schema">
-      <div class="head"><b>${fmt(s2.features)} объектов</b>
-        <span class="obl">${s2.layers} слоёв · ${s2.oblasts.map(esc).join(', ')}</span></div>
-      <div class="roles">${Object.entries(ROLES).map(([k, t]) => {
-    const f = s2.roles[k];
-    return `<span class="role${f ? '' : ' missing'}"><i>${t}:</i> ${f ? esc(f) : '—'}</span>`;
+      <div class="head"><b>${t('data.objects', { n: fmt(sc.features) })}</b>
+        <span class="obl">${sc.layers} · ${sc.oblasts.map(esc).join(', ')}</span></div>
+      <div class="roles">${roles.map((k) => {
+    const f = sc.roles[k];
+    return `<span class="role${f ? '' : ' missing'}"><i>${t(`role.${k}`)}:</i> ${f ? esc(f) : '—'}</span>`;
   }).join('')}</div></div>`).join('');
 }
 
+$('sLang').addEventListener('change', async () => {
+  const r = await call(window.api.settings.setLanguage($('sLang').value), t('settings.language'));
+  setLang(r.effectiveLanguage);
+  applyDom();
+  relabel();
+  loadSettings();
+});
+
 $('sPickDir').addEventListener('click', async () => {
-  const s = await call(window.api.settings.pickDataDir(), 'Каталог данных');
+  const s = await call(window.api.settings.pickDataDir(), t('settings.dataDir'));
   if (!s) return;
   await loadSettings();
-  if (s.dbExists) { await bootData(); toast('База подключена', 'ok'); }
-  else toast('В каталоге нет базы — синхронизируйте или укажите другой', 'err');
+  if (s.dbExists) { await bootData(); toast(t('sync.dbConnected'), 'ok'); }
+  else toast(t('sync.noDbInDir'), 'err');
 });
 
 $('sReveal').addEventListener('click', () => window.api.settings.reveal('db'));
 
-/* ---- учётные данные ---- */
+/* ---- credentials ---- */
 
 const closeCreds = () => { $('credsModal').hidden = true; $('credsPass').value = ''; };
 $('sCredsSet').addEventListener('click', () => { $('credsModal').hidden = false; $('credsUser').focus(); });
 $('credsCancel').addEventListener('click', closeCreds);
 $('credsModal').addEventListener('click', (e) => { if (e.target === $('credsModal')) closeCreds(); });
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (!$('credsModal').hidden) closeCreds();
+  if (e.key === 'Escape' && !$('credsModal').hidden) closeCreds();
 });
 $('credsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const r = await window.api.settings.credsSave($('credsUser').value.trim(), $('credsPass').value);
-  if (r.ok) { closeCreds(); toast('Сохранено в связке ключей', 'ok'); loadSettings(); }
-  else toast(r.error, 'err');
+  if (r.ok) { closeCreds(); toast(t('settings.credsSaved'), 'ok'); loadSettings(); } else toast(r.error, 'err');
 });
 $('sCredsClear').addEventListener('click', async () => {
   await window.api.settings.credsClear();
-  toast('Учётные данные забыты');
+  toast(t('settings.credsCleared'));
   loadSettings();
 });
 
-/* ---- управление базой ---- */
+/* ---- database management ---- */
 
 function syncLog(text, cls = '') {
   const box = $('sLog');
@@ -587,12 +641,15 @@ function syncBusy(on) {
 window.api.sync.onProgress((p) => {
   if (p.type === 'probe' || p.type === 'load') {
     $('sFill').style.width = `${Math.round((p.i / p.total) * 100)}%`;
-    if (p.i % 100 === 0 || p.i === p.total) syncLog(`${p.type === 'probe' ? 'опрошено' : 'загружено'} ${p.i}/${p.total}`);
+    if (p.i % 100 === 0 || p.i === p.total) {
+      syncLog(t(p.type === 'probe' ? 'sync.probed' : 'sync.loaded', { i: p.i, total: p.total }));
+    }
   } else if (p.type === 'layer') {
     $('sFill').style.width = `${Math.round((p.i / p.total) * 100)}%`;
-    if (p.status === 'уже есть') return;
-    syncLog(`[${p.i}/${p.total}] ${p.status} ${p.text} ${p.error ? `— ${p.error}` : (p.count != null ? `— ${fmt(p.count)} об.` : '')}`,
-      p.status === 'ошибка' ? 'err' : (p.status === 'готово' ? 'ok' : ''));
+    if (p.status === 'skipped') return;
+    const tail = p.error ? `— ${p.error}` : (p.count != null ? `— ${fmt(p.count)}` : '');
+    syncLog(`[${p.i}/${p.total}] ${t(`sync.status.${p.status}`)} ${p.text} ${tail}`,
+      p.status === 'failed' ? 'err' : (p.status === 'done' ? 'ok' : ''));
   } else if (p.type === 'stage') {
     syncLog(p.text);
   }
@@ -602,56 +659,70 @@ window.api.sync.onLog(({ text }) => syncLog(text));
 $('sCheck').addEventListener('click', async () => {
   syncBusy(true);
   try {
-    const r = await call(window.api.sync.check(), 'Проверка');
+    const r = await call(window.api.sync.check(), t('settings.check'));
     state.sync.changed = r.changed; state.sync.added = r.added;
     const n = r.changed.length + r.added.length;
     $('sResult').innerHTML = n === 0
-      ? '<p class="hint">Изменений нет, база актуальна.</p>'
-      : `<p class="hint">К докачке ${n} слоёв${r.removed.length ? `, исчезло с сервера ${r.removed.length} (в базе остаются)` : ''}.</p>`
-        + `<table class="grid"><tr><th>Слой</th><th>Область</th><th>Что изменилось</th></tr>${
+      ? `<p class="hint">${t('sync.noChanges')}</p>`
+      : `<p class="hint">${t('sync.toPull', { n })}${r.removed.length ? t('sync.removed', { n: r.removed.length }) : ''}.</p>`
+        + `<table class="grid"><tr><th>${t('sync.layer')}</th><th>${t('sync.oblast')}</th><th>${t('sync.whatChanged')}</th></tr>${
           r.changed.slice(0, 60).map((c) => `<tr><td>${esc(c.key)}</td><td>${esc(c.oblast || '')}</td><td>${esc(c.why)}</td></tr>`).join('')}</table>`;
-  } catch { /* показано */ } finally { syncBusy(false); }
+  } catch { /* already reported */ } finally { syncBusy(false); }
 });
 
 const pull = async (keys) => {
-  if (keys.length === 0) { toast('Нечего качать'); return; }
+  if (keys.length === 0) { toast(t('sync.nothingToPull')); return; }
   syncBusy(true);
   try {
-    const r = await call(window.api.sync.pull(keys), 'Докачка');
-    syncLog(`\nслоёв ${r.done}, ошибок ${r.failed}, объектов ${fmt(r.features)}`, 'ok');
-    syncLog(`лесничеств с кварталами: ${r.links.forestriesWithKvartaly} из ${r.links.forestriesTotal}`);
-    toast(`Докачано ${r.done} слоёв`, 'ok');
+    const r = await call(window.api.sync.pull(keys), t('settings.pull'));
+    syncLog(t('sync.pullReport', { done: r.done, failed: r.failed, features: fmt(r.features) }), 'ok');
+    toast(t('sync.pulled', { n: r.done }), 'ok');
     state.sync.changed = []; state.sync.added = [];
     await bootData();
     await loadSettings();
-  } catch { /* показано */ } finally { syncBusy(false); }
+  } catch { /* already reported */ } finally { syncBusy(false); }
 };
 
 $('sPull').addEventListener('click', () => pull([...state.sync.changed.map((c) => c.key), ...state.sync.added]));
 $('sRetry').addEventListener('click', async () => {
-  const m = await call(window.api.sync.manifest(), 'Архив');
+  const m = await call(window.api.sync.manifest(), t('settings.archiveState'));
   pull(m.bad.filter((b) => !b.noRights).map((b) => b.key));
 });
 
 $('sRebuild').addEventListener('click', async () => {
   syncBusy(true);
   try {
-    const r = await call(window.api.db.rebuild(true), 'Пересборка');
-    syncLog(`загружено ${r.loaded} слоёв, связей ${r.links.byName}+${r.links.byGeo}`, 'ok');
-    toast('База пересобрана', 'ok');
+    const r = await call(window.api.db.rebuild(true), t('settings.rebuild'));
+    syncLog(t('sync.rebuildReport', { loaded: r.loaded, links: `${r.links.byName}+${r.links.byGeo}` }), 'ok');
+    toast(t('sync.rebuilt'), 'ok');
     await bootData();
     await loadSettings();
-  } catch { /* показано */ } finally { syncBusy(false); }
+  } catch { /* already reported */ } finally { syncBusy(false); }
 });
 
-/* ================================================================ старт */
+/* ================================================================ start */
+
+/** Re-render everything whose text comes from data, after a language switch. */
+function relabel() {
+  $('dPicked').textContent = state.data.picked.size
+    ? t('list.picked', { n: state.data.picked.size }) : t('list.all');
+  $('dFacets').dataset.built = '';
+  if (!$('dFacets').hidden) renderFacets();
+  if (state.exporters.length) { renderFormats(); renderOptions(); }
+  renderPicked();
+  fillSqlTables();
+  loadRows();
+  refreshPreview();
+}
 
 async function bootData() {
-  const info = await call(window.api.db.summary(), 'Сводка');
-  $('dbinfo').textContent = `${fmt(info.vydels)} выделов · ${fmt(info.forestries)} лесничеств · ${fmt(info.oblasts)} областей`;
-  state.forestries = await call(window.api.db.forestries(), 'Лесничества');
-  state.columns = await call(window.api.db.columns(), 'Колонки');
-  state.facets = await call(window.api.db.facets(), 'Справочники');
+  const info = await call(window.api.db.summary(), t('settings.summary'));
+  $('dbinfo').textContent = t('db.info', {
+    vydels: fmt(info.vydels), forestries: fmt(info.forestries), oblasts: fmt(info.oblasts),
+  });
+  state.forestries = await call(window.api.db.forestries(), t('stat.forestries'));
+  state.columns = await call(window.api.db.columns(), t('tab.data'));
+  state.facets = await call(window.api.db.facets(), t('filter.more'));
   state.data.picked.clear();
   state.exp.picked.clear();
   renderDataList();
@@ -659,22 +730,30 @@ async function bootData() {
   renderPicked();
   $('dFacets').dataset.built = '';
   loadRows();
+  fillSqlTables();
 }
 
 (async function init() {
-  state.exporters = await call(window.api.exportData.list(), 'Форматы');
-  $('eFormat').innerHTML = state.exporters.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  // Language comes first: everything after it renders already translated
+  try {
+    const s = await call(window.api.settings.status(), 'settings');
+    setLang(s.effectiveLanguage);
+  } catch { setLang('en'); }
+  applyDom();
+
+  state.exporters = await call(window.api.exportData.list(), t('export.format'));
   state.exp.format = state.exporters[0]?.id || 'kml';
   state.exp.options = Object.fromEntries((state.exporters[0]?.options || []).map((x) => [x.key, x.value]));
+  renderFormats();
   renderOptions();
 
   try {
-    await call(window.api.db.open(), 'Открытие базы');
+    await call(window.api.db.open(), t('stat.db'));
     await bootData();
   } catch {
-    $('dbinfo').textContent = 'база не открыта';
+    $('dbinfo').textContent = t('db.notChosen');
     $('dEmpty').hidden = false;
-    $('dEmpty').innerHTML = 'база не выбрана — укажите каталог данных в <button class="link" id="goSettings">Настройках</button>';
-    $('goSettings')?.addEventListener('click', () => goTab('settings'));
+    $('dEmpty').textContent = t('data.chooseDb');
   }
+  window.__lang = getLang;   // handy for the smoke test
 })();

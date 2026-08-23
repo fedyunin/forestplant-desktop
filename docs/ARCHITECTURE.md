@@ -1,217 +1,256 @@
-# ForestPlant Desktop — архитектура
+# ForestPlant Desktop — architecture
 
-Настольное приложение для выгрузки данных лесного фонда из ГИС
-`forestplant.gharysh.kz` (ArcGIS Server), хранения их локально и генерации KML.
+A desktop application that pulls forest fund data out of the GIS
+`forestplant.gharysh.kz` (ArcGIS Server), keeps it locally and generates KML.
 
-## Зачем
+## Why
 
-Веб-приложение системы не имеет ни экспорта, ни каталога сервисов — забрать
-данные оттуда штатными средствами нельзя. Приложение решает три задачи:
+The web application of the system offers neither an export nor a services
+directory — the data cannot be taken from there by ordinary means. The
+application solves three problems:
 
-1. **Снять полный слепок** данных, пока к ним есть доступ, и обновлять его.
-2. **Хранить локально** так, чтобы ничего не терялось при ошибках унификации.
-3. **Отдавать выборки в KML** с настраиваемым оформлением, в пределах
-   ограничений Google Earth.
+1. **Take a complete snapshot** of the data while access exists, and keep it
+   up to date.
+2. **Store it locally** so that nothing is lost to a mistake in unification.
+3. **Hand out selections as KML** with configurable styling, within the limits
+   of Google Earth.
 
-## Решения и почему именно так
+## Decisions, and why they are what they are
 
-### Electron + TypeScript, ядро на Node
+### Plain JavaScript on Electron, core free of Electron
 
-Один язык, одна сборка, один установщик. Существующий Python-прототип
-(`fp_export.py`, `fp_db.py`) остаётся как эталон поведения: на нём уже собраны
-проверенные результаты, они становятся golden-файлами для тестов порта.
+One language, one build, one installer. Everything under `src/core/` runs on
+plain Node with no Electron import, which is what makes it testable with
+`node --test` and reusable from the command line.
 
-### Сырой архив обязателен, база — производная
+### The raw archive is mandatory, the database is derived
 
-`raw/layers/*.geojson.gz` плюс `raw/_manifest.json` — лоссless-оригинал.
-База пересобирается из архива в любой момент; обратно — нет. На архиве же
-держится возобновление загрузки и определение изменений.
+`raw/layers/*.geojson.gz` plus `raw/_manifest.json` is the lossless original.
+The database is rebuilt from the archive at any time; never the other way
+round. Resuming a download and spotting changes both rest on the archive.
 
-Практическое следствие: **ошибка унификации не требует повторного обращения к
-серверу.** Это главное свойство, ради которого архив хранится отдельно.
+The practical consequence: **a mistake in unification needs no second trip to
+the server.** That is the whole reason the archive is kept separately.
 
-### Сырые атрибуты хранятся дословно
+### Raw attributes are stored verbatim
 
-В таблице `feature` есть колонка `props` с исходными атрибутами как есть, и
-поверх неё — канонические колонки (`lesnichestvo`, `kvartal`, `vydel`,
-`ploshad`, ...). Канонические колонки могут быть заполнены неверно; `props`
-неверными быть не могут.
+The heavy half of an object lives in `feature_data`: the `props` column holds
+the source attributes as they are, and `geom` the geometry. The canonical
+columns (`lesnichestvo`, `kvartal`, `vydel`, `ploshad`, ...) sit on top of them
+in `feature`. The canonical columns can be filled in wrongly; `props` cannot.
 
-### Роли полей определяются по образцу, а не по имени
+### Hot and cold columns live in different tables
 
-В системе **10 различных схем полей**. Номер выдела встречается как
-`НумерацияВыделов`, `Nвыд`, `NВыд`, `Нумерация_выделов`. Лесничество — как
-`Лесничество` и `Лесничеств`. Тип слоя тоже не выводится из названия: у
-Северо-Казахстанской области выделы называются `ВыдПород`, `ВыдПород2_12`.
+Geometry takes 6.8 GB out of 11, and the raw attributes almost another
+gigabyte. While everything sat in one table, a filter by species dragged
+gigabytes of geometry it did not need off the disk: a query took 22 seconds.
+`feature` now holds only what is searched on; `feature_data` is read when an
+object is shown and when exporting.
 
-Это дважды приводило к молчаливым ошибкам:
+The forestry tree (`forestry`) and the filter lookups (`facet`) are
+materialised for the same reason: recomputing them over 1.4 million rows took
+22 and 62 seconds respectively.
 
-- захардкоженное `НумерацияВыделов` покрывало 266 слоёв из 381 — у остальных
-  115 в подписи попадал бы `OBJECTID` вместо номера выдела;
-- роль «категория земель» перехватывала `КатегорияЗащитностиЛесныхЗемель`
-  (в названии есть и «категор», и «Земель»), и настоящая
-  `КатегорияЛесныхЗемель` терялась.
+### Field roles are resolved by pattern, not by name
 
-Разнобой в именах ломал данные **четыре раза**, и каждый раз молча:
+The system holds **10 different field schemas**. The stand number appears as
+`НумерацияВыделов`, `Nвыд`, `NВыд`, `Нумерация_выделов`. The forestry as
+`Лесничество` and `Лесничеств`. Nor does the layer type follow from the name:
+in the North Kazakhstan region the stands are called `ВыдПород`,
+`ВыдПород2_12`.
 
-| Что | Цена |
+This caused silent bugs twice:
+
+- a hardcoded `НумерацияВыделов` covered 266 layers out of 381 — in the other
+  115 the label would have carried `OBJECTID` instead of the stand number;
+- the «land category» role stole `КатегорияЗащитностиЛесныхЗемель` (the name
+  holds both «категор» and «Земель»), and the real `КатегорияЛесныхЗемель` was
+  lost.
+
+The inconsistency in names broke the data **four times**, silently every time:
+
+| What | Cost |
 |---|---|
-| `НумерацияВыделов` против `Nвыд` | 115 слоёв получали бы OBJECTID вместо номера выдела |
-| `ВыдПород` вместо «Границы выделов» | 106 слоёв, +491 480 выделов считались «прочим» |
-| `\b` в JS не работает на кириллице | кварталы не связывались с лесничествами вовсе |
-| `Лесни` и `Nквар` усечены | 59 слоёв, +203 809 выделов; Костанайская область была представлена одной двадцать седьмой частью своих данных |
+| `НумерацияВыделов` against `Nвыд` | 115 layers would carry OBJECTID instead of the stand number |
+| `ВыдПород` instead of «Границы выделов» | 106 layers, +491 480 stands counted as «other» |
+| `\b` in JS does not work on Cyrillic | blocks were not linked to forestries at all |
+| `Лесни` and `Nквар` truncated | 59 layers, +203 809 stands; the Kostanay region was represented by one twenty-seventh of its data |
 
-Ни один случай не давал ошибки: файлы создавались, объекты были на месте, цифры
-подписаны. Все четыре нашлись только сверкой ожидаемого с фактическим.
+Not one of them raised an error: files were created, objects were in place,
+numbers were labelled. All four were found only by checking the expected
+against the actual.
 
-**Поэтому сопоставление полей — отдельный экран UI**, а не скрытая константа.
-Экран показывает все схемы, роли и число объектов под каждой.
+**That is why field mapping is a screen of its own**, not a hidden constant.
+The screen shows every schema, its roles and the number of objects under it.
 
-### Размер страницы выгрузки подбирается по факту отказа
+### The download page size is settled by actual refusal
 
-Сервер ограничивает не число объектов в ответе, а его объём. Четыреста мелких
-выделов он отдаёт легко, тридцать полигонов границ лесничеств на область — не
-отдаёт никогда, отвечая HTML-страницей ошибки вместо JSON. Заранее подобрать
-размер страницы нельзя.
+The server limits not the number of objects in an answer but its size. Four
+hundred small stands it serves easily; thirty forestry boundary polygons of a
+region it never serves, answering with an HTML error page instead of JSON. The
+page size cannot be guessed ahead.
 
-Поэтому: не взялось — делим кусок пополам и пробуем снова, вплоть до
-одиночного объекта. Крупные куски отбрасываем после двух попыток и дробим
-сразу; терпеливо ждать имеет смысл только на мелких, иначе на каждом уровне
-дробления уходят минуты на заведомо безнадёжный запрос.
+So: if a chunk fails, halve it and try again, down to a single object. Large
+chunks are abandoned after two attempts and split at once; waiting patiently
+only pays off on small ones, otherwise every level of splitting spends minutes
+on a request that is hopeless anyway.
 
-Что это дало на слое «Архивные данные»: было 18 803 объекта из 19 203, стало
-19 202. Единственная запись, которую сервер не отдаёт даже поштучно, названа
-поимённо и записана в манифест как заведомо недоступная — иначе слой вечно
-перекачивался бы впустую.
+What that gave on the «Архивные данные» layer: 18 803 objects out of 19 203
+before, 19 202 after. The single record the server refuses even one by one is
+named explicitly and recorded in the manifest as knowingly unavailable —
+otherwise the layer would be refetched forever for nothing.
 
-### Таймаут — на своём таймере, а не на опции запроса
+### The timeout runs on its own timer, not on the request option
 
-Опция `timeout` у `https.request` не применяется к сокетам, переиспользованным
-keepAlive-агентом. Один повисший запрос заблокировал весь пул: выгрузка
-простояла 8 часов 25 минут на нулевом CPU и не забрала ничего.
+The `timeout` option of `https.request` is not applied to sockets reused by a
+keepAlive agent. One hung request blocked the whole pool: a dump stood still
+for 8 hours 25 minutes at zero CPU and fetched nothing.
 
-Отсюда же требование к прогрессу: он должен идти **внутри** слоя, а не только
-по его завершении. Иначе зависание неотличимо от долгой работы.
+The same follows for progress: it has to move **inside** a layer, not only when
+the layer finishes. Otherwise a hang is indistinguishable from slow work.
 
-### Ограничение Google Earth — по вершинам, не по объектам
+### The Google Earth limit counts vertices, not objects
 
 `Your file has too many vertices (287,793). The total number of vertices from
 points, lines, and polygons cannot exceed 250,000.`
 
-Считаются точки координат, и каждая подпись — тоже точка. Разбивка на части
-ведётся по бюджету вершин (по умолчанию 240 000). Кварталы и контур лесничества
-кладутся только в первую часть, чтобы не дублировать вес.
+Coordinate points are counted, and every label is a point too. Splitting runs
+on a vertex budget (240 000 by default). Blocks and the forestry outline go
+into the first part only, so their weight is not counted again — and when they
+alone would crowd out the stands, they move into a file of their own.
 
-### Граница лесничества вычисляется, а не берётся готовой
+### The forestry boundary is computed, not taken ready
 
-Готового слоя границ лесничеств в пригодном виде на сервере нет: в
-`Granica_uchrezhdenii` имена полей побиты кодировкой. Контур считается склейкой
-кварталов — рёбра, встретившиеся дважды, внутренние и отбрасываются.
+There is no usable ready layer of forestry boundaries on the server: in
+`Granica_uchrezhdenii` the field names are mangled by an encoding error. The
+outline is computed by merging the blocks — edges seen twice are interior and
+are dropped.
 
-Проверено на реальных данных: склейка выделов каждого квартала совпала с
-настоящим полигоном квартала в 56 случаях из 59, остальные три оказались
-кварталами из двух отдельных кусков, а не ошибкой. Микроскопические
-кольца-слипы (43 из 46 у Каскеленского) отсекаются по доле площади.
+Checked against real data: merging the stands of each block matched the actual
+block polygon in 56 cases out of 59; the other three turned out to be blocks
+made of two separate pieces, not an error. Microscopic sliver rings (43 out of
+46 at Kaskelenskoe) are filtered out by their share of the area.
 
-## Границы возможного
+## The limits of what is possible
 
-- **47 слоёв отдают 403** — питомники, посадки деревьев, заготовка семян по
-  областям. У учётной записи нет прав на сервере. UI обязан показывать это
-  явной строкой «нет прав», иначе отсутствие данных выглядит как их отсутствие
-  в природе.
-- Слой «Вырубки по 2022» отдаёт 18 803 объекта из заявленных 19 203.
-- Слои Акмолинской области периодически возвращают битый ответ вместо JSON.
+- **47 layers answer 403** — nurseries, tree plantings, seed harvesting per
+  region. The account has no rights on the server. The UI must show this as an
+  explicit «no access» line, or missing data looks like data that never
+  existed.
+- The «Вырубки по 2022» layer serves 18 803 objects out of the 19 203 declared.
+- Layers of the Akmola region occasionally return a broken answer instead of
+  JSON.
 
-## Схема данных
+## Data schema
 
 ```
-layer                       реестр слоёв
-  key            TEXT PK    <сервис>_<MS|FS>_<id>
-  kind           TEXT       vydel | kvartal | misc  -- по составу полей
+layer                       registry of layers
+  key            TEXT PK    <service>_<MS|FS>_<id>
+  kind           TEXT       vydel | kvartal | misc  -- by field composition
   oblast, service_url, layer_id, path, layer_name, geometry_type
   uchrezhdenie, lesnichestvo
-  fields         JSON       исходные имена полей
-  roles          JSON       роль -> имя поля
+  fields         JSON       source field names
+  roles          JSON       role -> field name
   server_count, loaded_count, sha256
 
-feature                     объекты
+feature                     objects: only what is searched and sorted on
   id             INTEGER PK
   layer_key, kind
-  oblast, uchrezhdenie, lesnichestvo, company
+  oblast, uchrezhdenie, lesnichestvo, les_key, company
   kvartal, vydel             INTEGER
   ploshad                    REAL
   poroda, bonitet, tip_lesa, kat_zem, kat_zasch
-  objectid
-  props          JSON        сырые атрибуты, дословно
-  geom           JSON        геометрия GeoJSON, WGS84
+  objectid, nvert
   minx, miny, maxx, maxy     bbox
+
+feature_data                the heavy half, read on demand
+  feature_id     INTEGER PK
+  props          JSON        raw attributes, verbatim
+  geom           JSON        GeoJSON geometry, WGS84
+
+forestry                    materialised tree with counters and weights
+facet                       materialised lookups for the filters
+kvartal_link                blocks linked to forestries
 ```
 
-К переносу в приложение: R\*Tree вместо колонок bbox, FTS5 для поиска по
-названиям, версионированные миграции.
+Migrations are versioned through `PRAGMA user_version`; new steps are appended
+to the list in `src/core/db.js`.
 
-## Процессы
+## Processes
 
 ```
-main (Node)              окно, меню, IPC, права доступа
-  └── utility: db        better-sqlite3, синхронный -- нельзя держать в main
-  └── utility: sync      пул загрузки, worker_threads
-renderer (React)         только UI, sandbox: true, nodeIntegration: false
+main (Node)              window, IPC, access checks — nothing heavy
+  └── utility: fast      browsing: the list, the table, one object, the estimate
+  └── utility: heavy     the slow ones: SQL console, export, syncing, rebuild
+renderer                 the UI only, sandbox: true, nodeIntegration: false
 ```
 
-IPC — типизированные каналы через `contextBridge`, вход валидируется `zod`.
-Жёсткий CSP, никакого удалённого контента. Учётные данные — только
-`safeStorage` (системная связка ключей), никогда в конфигах и логах.
+There are two worker processes, and that is not a luxury: one process handles
+messages in order, so a heavy query held up everything else — a measurement
+showed 3.8 seconds for an ordinary call while an SQL console query ran. SQLite
+allows several readers, so both open the same database.
 
-## Экраны
+IPC runs through `contextBridge` over a closed list of channels, and the input
+is validated in `src/main/ipc.js`. A strict CSP, no remote content.
+Credentials go only through `safeStorage` (the system keychain), never into
+configs or logs.
 
-1. **Синхронизация** — прогресс по слоям, потоки, ошибки и 403 на виду,
-   проверка обновлений по отпечаткам (количество, макс. OBJECTID, макс. дата
-   правки) без скачивания.
-2. **Данные** — дерево область/учреждение/лесничество, счётчики, сверка
-   «сервер сказал N — в базе N», экран сопоставления полей.
-3. **Экспорт** — конструктор фильтров, редактор стилей с превью, бюджет
-   вершин и разбивка, сводный файл со ссылками.
+## Screens
 
-## Оформление по умолчанию
+1. **Data** — the object table, filters by block, stand, area, species and land
+   category, an object card with the raw attributes, and SQL as a second way of
+   building the same selection: a query returning an id column narrows the
+   selection exactly as the filters do.
+2. **Export** — search over the forestries, a style editor with a preview, the
+   vertex budget and splitting, an index file of links.
+3. **Settings** — the data folder, credentials, database management (checking
+   for updates by fingerprints — count, max OBJECTID, max edit date — without
+   downloading), the archive state and the field mapping screen. The interface
+   language lives here too.
 
-| Уровень | Цвет | Толщина |
+## Default styling
+
+| Level | Colour | Width |
 |---|---|---|
-| Границы лесничества | `#FFD400` | 4.5 |
-| Кварталы | `#00A03C` | 2.6 |
-| Выделы | `#9400D3` | 1.2 |
+| Forestry boundary | `#FFD400` | 4.5 |
+| Blocks | `#00A03C` | 2.6 |
+| Stands | `#9400D3` | 1.2 |
 
-Толщина растёт по иерархии — иначе на общем плане линии разных уровней
-сливаются.
+The width grows with the hierarchy — otherwise the levels merge visually on an
+overview.
 
-## Подписи
+## Labels
 
-KML не показывает подписи у полигонов — это ограничение формата, а не
-рендерера. Подпись ставится точкой-якорем внутри контура с прозрачной иконкой.
+KML shows no labels on polygons — a limit of the format, not of the renderer. A
+label is placed as an anchor point inside the outline with a transparent icon.
 
-Якорь — не центроид: у вогнутых и кольцевых фигур центроид уходит наружу.
-Сначала берётся центроид наибольшего кольца, и если он вне полигона —
-середина самого широкого горизонтального отрезка внутри контура.
+The anchor is not the centroid: on concave and ring-shaped figures the centroid
+lands outside. First the centroid of the largest ring is taken, and when that
+falls outside the polygon — the midpoint of the widest horizontal segment
+inside the outline.
 
-Проверка обязательна и автоматизирована: на 9246 подписях четырёх лесничеств —
-ноль промахов.
+The check is mandatory and automated: across 9246 labels of four forestries —
+not one miss.
 
-## Качество
+## Interface language
 
-- TypeScript strict, ESLint, Prettier.
-- Vitest: склейка контуров, точка подписи, счёт вершин, сопоставление полей,
-  разбивка по бюджету.
-- Golden-file тесты KML против эталонов, снятых с Python-прототипа.
-- Playwright на собранном приложении.
-- CI: GitHub Actions, сборка под macOS и Windows.
+The dictionary lives in `src/renderer/i18n.js`, and the markup carries the keys
+in `data-i18n`. The language is chosen in Settings and follows `app.getLocale()`
+by default. Text that reaches the exported files is chosen in the same way and
+passed down to the exporter — the KML that a Russian-speaking forester opens
+should not suddenly speak English.
 
-## Этапы
+The window self-check reads data attributes and numbers rather than the visible
+text, so switching the language cannot break it.
 
-**MVP — экспорт поверх готовой базы.** Чтение существующей `forest.sqlite`,
-фильтры, стили, экспорт с разбивкой. Синхронизация пока остаётся на CLI.
+## Quality
 
-**v1 — синхронизация в приложении.** Экран загрузки, потоки, обновления по
-отпечаткам, экран сопоставления полей.
-
-**v2 — раздача коллегам.** Установщики, подпись, нотаризация, автообновление,
-понятные сообщения об ошибках.
+- ESLint over the whole repository, including the CI.
+- `node --test`: outline merging, the label point, vertex counting, field
+  resolution, splitting by budget, the language of the exported text.
+- The window self-check `npm run smoke` on the running application: the table,
+  the object card, search, SQL as a selection and as a report, the estimate
+  agreeing with the selection, the window staying alive during a heavy query,
+  the export estimate, and the language switch.
+- CI: GitHub Actions — checks on every push, installers for macOS and Windows
+  on a `v*` tag.

@@ -1,113 +1,121 @@
-# Лесной фонд — выгрузка в KML
+# Forest Fund — export to KML
 
-Настольное приложение: забирает данные лесного фонда из ГИС
-`forestplant.gharysh.kz`, хранит локально и отдаёт выборки в KML для Google
-Earth.
+A desktop application: it pulls forest fund data out of the GIS
+`forestplant.gharysh.kz`, keeps it locally, and hands selections over as KML
+for Google Earth.
 
-В самой ГИС экспорта нет, а каталог сервисов отключён администратором — забрать
-данные штатными средствами оттуда нельзя.
+The GIS itself offers no export, and the services directory is switched off by
+the administrator — the data cannot be taken from there by ordinary means.
 
-## Быстрый старт
+The interface speaks English and Russian; the language is chosen in Settings
+and follows the system by default.
+
+## Quick start
 
 ```bash
 npm install
-npm run sync      # выгрузить с сервера и собрать базу (первый раз — несколько часов)
-npm start         # приложение
+npm run sync      # fetch from the server and build the database (hours on the first run)
+npm start         # the application
 ```
 
-Учётные данные приложение спросит само и сохранит в системной связке ключей.
-Для командной строки можно задать `FP_USER` и `FP_PASS`.
+The application asks for the credentials itself and stores them in the system
+keychain. For the command line, set `FP_USER` and `FP_PASS`.
 
-## Команды
+## Commands
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `npm start` | приложение |
-| `npm run sync` | докачать изменения и обновить базу |
-| `npm run sync -- --check` | только показать, что изменилось на сервере |
-| `npm run sync -- --retry-failed` | повторить упавшие слои |
-| `npm run sync -- --full` | перекачать всё заново |
-| `npm run load -- --reset` | пересобрать базу из архива, без сети |
-| `npm test` | тесты ядра |
-| `npm run smoke` | самопроверка окна |
+| `npm start` | the application |
+| `npm run sync` | fetch changes and update the database |
+| `npm run sync -- --check` | only show what changed on the server |
+| `npm run sync -- --retry-failed` | retry the layers that failed |
+| `npm run sync -- --full` | refetch everything from scratch |
+| `npm run load -- --reset` | rebuild the database from the archive, offline |
+| `npm test` | core tests |
+| `npm run smoke` | window self-check |
 
-## Сборка
+## Building
 
 ```bash
-npm run dist       # macOS (DMG для Apple Silicon и Intel) + Windows (установщик)
+npm run dist       # macOS (DMG for Apple Silicon and Intel) + Windows (installer)
 npm run dist:mac
 npm run dist:win
 ```
 
-Готовые файлы кладутся в `dist/`.
+The finished files land in `dist/`. Pushing a `v*` tag builds them on GitHub
+and attaches them to a draft Release.
 
-Подписи настоящим сертификатом нет, поэтому при первом запуске:
-- **macOS** — правый клик по приложению, «Открыть», один раз подтвердить;
-- **Windows** — в предупреждении SmartScreen нажать «Подробнее» и «Выполнить в любом случае».
+There is no signing with a real certificate, so on the first launch:
+- **macOS** — right-click the app, «Open», confirm once;
+- **Windows** — in the SmartScreen warning press «More info» and «Run anyway».
 
-Три вещи, на которые ушло много времени и которые нельзя трогать без причины:
+Three things that took a long time and must not be touched without a reason:
 
-**Имя приложения обязано быть латиницей.** С кириллицей в `productName`
-собранное приложение падает при запуске, не доходя до инициализации Electron.
-Русское название задаётся отдельно, через `CFBundleDisplayName`.
+**The application name has to be ASCII.** With Cyrillic in `productName` the
+built application dies at startup, before Electron initialisation. The display
+name is set separately, through `CFBundleDisplayName`.
 
-**Права подписи для macOS.** Формальная подпись на Apple Silicon обязательна, а
-с ней нужны `disable-library-validation` (иначе система убивает приложение на
-нативном модуле) и `allow-jit` (иначе V8 падает с `Failed to reserve virtual
+**macOS signing entitlements.** Ad-hoc signing is mandatory on Apple Silicon,
+and with it come `disable-library-validation` (or the system kills the app on
+the native module) and `allow-jit` (or V8 dies with `Failed to reserve virtual
 memory for CodeRange`).
 
-**Журнал запуска.** Пишется в `app.log` рядом с настройками приложения. Без
-него падение при старте выглядит как «просто не открывается» — вывод в консоль
-в собранном приложении никто не видит.
+**The startup log.** Written to `app.log` next to the application settings.
+Without it a crash at startup looks like «it just does not open» — nobody sees
+console output from a packaged application.
 
-## Что где лежит
+## What lives where
 
 ```
-raw/              сырой архив: .geojson.gz по слою + манифест
-forest.sqlite     база
-src/core/         ядро без Electron: клиент, геометрия, KML, база
-src/main/         главный процесс: окно, IPC, запросы
-src/renderer/     окно
-test/             тесты
-docs/             архитектура и принятые решения
+db/               data folder (path set in Settings)
+  forest.sqlite     the database
+  raw/              raw archive: one .geojson.gz per layer + the manifest
+src/core/         core without Electron: client, geometry, KML, database
+src/main/         main process: window, IPC, queries
+src/renderer/     the window
+src/exporters/    export formats, KML first
+test/             tests
+docs/             architecture and the decisions taken
 ```
 
-`raw/` не удалять: это лоссless-оригинал, база пересобирается из него в любой
-момент, а обратно — нет. На нём же держится возобновление загрузки и
-определение изменений.
+Do not delete `raw/`: it is the lossless original, the database is rebuilt from
+it at any time and never the other way round. Resuming a download and spotting
+changes both rest on it.
 
-## Экраны
+## Screens
 
-**Экспорт** — дерево область → учреждение → лесничество, фильтры по кварталам,
-выделам, площади, породе, категории земель. Цвета и толщины линий с превью.
-Оценка «сколько выделов, сколько вершин, во сколько файлов» до запуска.
+**Data** — browsing and querying: the object table, filters by block, stand,
+area, species and land category, an object card with the raw attributes, and
+SQL as a second way of building the same selection.
 
-**Синхронизация** — проверка обновлений по отпечаткам слоёв (без скачивания),
-докачка изменений, повтор упавших. Недоступные слои показаны отдельно.
+**Export** — search over the forestries, colours and line widths with a
+preview, and an estimate of «how many stands, how many vertices, how many
+files» before the run.
 
-**Данные** — сводка и сверка «сервер обещал N — в базе N» по каждому слою.
+**Settings** — the data folder, credentials, database management (checking for
+updates by layer fingerprints without downloading, fetching changes, retrying
+failures), the archive state, and the field schemas: which field took which
+role. Not decoration — the field names across the system are inconsistent, and
+twice a silent bug hid exactly there.
 
-**Схемы полей** — какое поле в какую роль легло. Не украшение: имена полей в
-системе разнородны, и дважды именно здесь пряталась молчаливая ошибка.
+## What you need to know about the data
 
-## Что нужно знать про данные
+**47 layers answer 403** — nurseries, tree plantings, seed harvesting. The
+account has no rights on the server; retrying does not help. The application
+marks them separately, so missing data does not look like data that never
+existed.
 
-**47 слоёв отдают 403** — питомники, посадки деревьев, заготовка семян. У
-учётной записи нет прав на сервере; повторами не лечится. В приложении они
-помечены отдельно, чтобы отсутствие данных не выглядело как их отсутствие в
-природе.
+**Field names differ between regions.** The stand number appears as
+`НумерацияВыделов`, `Nвыд`, `NВыд`, `Нумерация_выделов`. Roles are resolved by
+the shape of the name, not from a list.
 
-**Имена полей различаются по областям.** Номер выдела встречается как
-`НумерацияВыделов`, `Nвыд`, `NВыд`, `Нумерация_выделов`. Роли определяются по
-образцу имени, а не по списку.
+**Forestry names disagree between layers and contain typos.** The stands say
+«Байнкольское», the blocks «Байынкольское»; one Kaskelenskoe stand spells it
+«Каскеленско». Blocks are linked first by normalised name, and the remainder by
+geography.
 
-**Названия лесничеств расходятся между слоями и содержат опечатки.** У выделов
-«Байнкольское», у кварталов «Байынкольское»; у одного выдела Каскеленского
-записано «Каскеленско». Кварталы привязываются сначала по нормализованному
-названию, остаток — по географии.
+**Google Earth refuses more than 250 000 vertices per file** — vertices, not
+objects, and every label is a vertex too. Files are split automatically, with
+an index file of links written next to them.
 
-**Google Earth не принимает больше 250 000 вершин на файл** — именно вершин, а
-не объектов, и каждая подпись тоже вершина. Файлы бьются на части
-автоматически, рядом кладётся сводный `_ВСЁ.kml` со ссылками.
-
-Подробнее о принятых решениях — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+More about the decisions taken — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

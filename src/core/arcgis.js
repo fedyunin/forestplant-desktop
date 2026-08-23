@@ -1,11 +1,11 @@
 /**
- * Клиент к ArcGIS Server системы forestplant.gharysh.kz.
+ * Client for the ArcGIS Server behind forestplant.gharysh.kz.
  *
- * Особенности этой установки, влияющие на устройство клиента:
- *  - каталог сервисов отключён администратором, работает только REST API;
- *  - сертификат не проходит проверку, поэтому она отключается точечно;
- *  - токен живёт сутки, при истечении сервер отвечает кодом 498/499;
- *  - часть сервисов отдаёт 403 «нет прав» — это не сбой, а граница доступа.
+ * Traits of this installation that shape the client:
+ *  - the services directory is switched off, only the REST API answers;
+ *  - the certificate fails validation, so validation is disabled locally;
+ *  - a token lives for a day; once expired the server answers 498/499;
+ *  - some services answer 403 «no access» — a boundary, not a failure.
  */
 
 import https from 'node:https';
@@ -15,8 +15,8 @@ export const PORTAL = 'https://arcgis.gharysh.kz/portal';
 export const APP = 'https://forestplant.gharysh.kz';
 export const WEBMAP_ID = 'f2fc59bb490040d1a25ce2eaf9df664f';
 
-// Сертификат сервера не проходит проверку цепочки. Агент ограничен этим
-// клиентом и не влияет на остальной процесс.
+// The server certificate fails chain validation. The agent is confined to this
+// client and does not affect the rest of the process.
 const agent = new https.Agent({ rejectUnauthorized: false, keepAlive: true, maxSockets: 16 });
 
 export class ArcGis {
@@ -31,12 +31,12 @@ export class ArcGis {
   log(msg) { this.onLog?.(msg); }
 
   /**
-   * POST формой. Повторы на сетевых сбоях и 5xx.
+   * POST as a form. Retries on network failures and 5xx.
    *
-   * Срок ответа задаётся жёстким таймером, а не опцией `timeout` у запроса:
-   * при keepAlive-агенте она не применяется к переиспользованным сокетам, и
-   * запрос может висеть бесконечно. Один такой висяк останавливает весь пул —
-   * ровно так выгрузка простояла восемь часов на нулевом CPU.
+   * The deadline is enforced by an explicit timer rather than the request
+   * `timeout` option: with a keepAlive agent that option is not applied to
+   * reused sockets and a request can hang forever. One such hang stalls the
+   * whole pool — that is exactly how a dump stood still for eight hours at 0% CPU.
    */
   post(url, params, { raw = false, tries = 6, timeout = 120000 } = {}) {
     const body = new URLSearchParams(params).toString();
@@ -59,7 +59,7 @@ export class ArcGis {
       }, (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
-        res.on('aborted', () => finish(reject, new Error('соединение оборвано')));
+        res.on('aborted', () => finish(reject, new Error('connection aborted')));
         res.on('end', () => {
           const buf = Buffer.concat(chunks);
           if (res.statusCode >= 500) { finish(reject, new Error(`HTTP ${res.statusCode}`)); return; }
@@ -68,11 +68,11 @@ export class ArcGis {
           try {
             finish(resolve, JSON.parse(text));
           } catch {
-            // Под нагрузкой сервер отвечает HTML-страницей ошибки вместо JSON.
-            // Это временное состояние: те же запросы в одиночку проходят, —
-            // поэтому такой ответ считаем «сервер занят» и ждём дольше обычного.
+            // Under load the server answers with an HTML error page, not JSON.
+            // That state is temporary — the same requests succeed alone — so we
+            // read such an answer as «server busy» and wait longer than usual.
             const busy = /^\s*<(!doctype|html)/i.test(text);
-            const err = new Error(busy ? 'сервер занят (ответил HTML)' : `не JSON: ${text.slice(0, 120)}`);
+            const err = new Error(busy ? 'server busy (answered HTML)' : `not JSON: ${text.slice(0, 120)}`);
             err.busy = busy;
             finish(reject, err);
           }
@@ -81,7 +81,7 @@ export class ArcGis {
 
       const timer = setTimeout(() => {
         req.destroy();
-        finish(reject, new Error(`нет ответа за ${Math.round(timeout / 1000)} с`));
+        finish(reject, new Error(`no answer within ${Math.round(timeout / 1000)} s`));
       }, timeout);
 
       req.on('error', (e) => finish(reject, e));
@@ -94,14 +94,14 @@ export class ArcGis {
         try { return await attempt(); } catch (e) {
           last = e;
           if (n === tries - 1) break;
-          // «занят» ждём заметно дольше: сервер должен успеть разгрестись
+          // «busy» waits noticeably longer: the server needs time to catch up
           const base = e.busy ? 5000 : 2000;
           const wait = Math.min(base * 2 ** n, 60000);
-          this.log?.(`  повтор через ${Math.round(wait / 1000)} с: ${e.message.slice(0, 60)}`);
+          this.log?.(`  retry in ${Math.round(wait / 1000)} s: ${e.message.slice(0, 60)}`);
           await new Promise((r) => setTimeout(r, wait));
         }
       }
-      throw new Error(`запрос ${url} не удался: ${last?.message || last}`);
+      throw new Error(`request ${url} failed: ${last?.message || last}`);
     };
     return run();
   }
@@ -116,13 +116,13 @@ export class ArcGis {
       expiration: 1440,
       f: 'json',
     });
-    if (!r.token) throw new Error(`не удалось получить токен: ${JSON.stringify(r).slice(0, 200)}`);
+    if (!r.token) throw new Error(`could not get a token: ${JSON.stringify(r).slice(0, 200)}`);
     this.token = r.token;
-    this.log('токен получен');
+    this.log('token received');
     return this.token;
   }
 
-  /** Запрос к REST с автоматическим перевыпуском протухшего токена. */
+  /** A REST request that reissues an expired token by itself. */
   async api(url, params = {}, opts = {}) {
     for (const force of [false, true]) {
       const token = await this.getToken(force);
@@ -130,14 +130,14 @@ export class ArcGis {
       const code = r?.error?.code;
       if (code !== 498 && code !== 499) return r;
     }
-    throw new Error('токен отвергнут дважды');
+    throw new Error('token rejected twice');
   }
 
   webmap() {
     return this.api(`${PORTAL}/sharing/rest/content/items/${WEBMAP_ID}/data`);
   }
 
-  /** Сервисы карт из веб-карты приложения. */
+  /** Map services taken from the application web map. */
   async services() {
     const data = await this.webmap();
     return (data.operationalLayers || [])
@@ -145,7 +145,7 @@ export class ArcGis {
       .map((l) => ({ title: l.title || '', url: l.url }));
   }
 
-  /** Дерево слоёв сервиса: [{path, id}] для всех Feature Layer. */
+  /** Layer tree of a service: [{path, id}] for every Feature Layer. */
   async tree(serviceUrl) {
     if (this._treeCache.has(serviceUrl)) return this._treeCache.get(serviceUrl);
     const d = await this.api(serviceUrl);
@@ -169,9 +169,9 @@ export class ArcGis {
   }
 
   /**
-   * Дешёвый отпечаток слоя — чтобы понять, изменился ли он, не скачивая.
-   * Ловит добавления и удаления надёжно; правки — только там, где сервер
-   * заполняет last_edited_date (в этой системе он часто пуст).
+   * A cheap fingerprint of a layer — to tell whether it changed without
+   * downloading it. Catches additions and removals reliably; edits only where
+   * the server fills last_edited_date (often empty in this system).
    */
   async probe(layerUrl, fields = []) {
     const out = {};
@@ -191,18 +191,18 @@ export class ArcGis {
         const a = r?.features?.[0]?.attributes || {};
         out.max_oid = a.mx_oid ?? null;
         out.max_edit = a.mx_ed ?? null;
-      } catch { /* статистика не обязательна */ }
+      } catch { /* statistics are optional */ }
     }
     return out;
   }
 
   /**
-   * Все объекты слоя в GeoJSON (WGS84), постранично по OBJECTID.
+   * All objects of a layer as GeoJSON (WGS84), paged by OBJECTID.
    *
-   * Кусок, не взявшийся даже после повторов внутри post(), не обнуляет весь
-   * слой: он откладывается и проходит вторым кругом с уменьшенным размером
-   * страницы. У слоя в 400 тысяч объектов один сбойный запрос иначе выбрасывал
-   * часы работы.
+   * A chunk that fails even after the retries inside post() does not void the
+   * whole layer: it is deferred and taken again on a second pass with a
+   * smaller page. On a layer of 400 thousand objects one failed request would
+   * otherwise throw away hours of work.
    */
   async fetchLayer(layerUrl, { where = '1=1', chunk = 400, onChunk = null } = {}) {
     const ids = await this.api(`${layerUrl}/query`, { where, returnIdsOnly: 'true' });
@@ -210,9 +210,9 @@ export class ArcGis {
     const oids = ids.objectIds || [];
     const features = [];
 
-    // Крупный кусок отбрасываем после одной-двух попыток и сразу дробим:
-    // терпеливо ждать имеет смысл только когда кусок уже мелкий, иначе на
-    // каждом уровне дробления тратятся минуты на заведомо безнадёжный запрос.
+    // A large chunk is abandoned after one or two attempts and split at once:
+    // waiting patiently only pays off once the chunk is small, otherwise every
+    // level of splitting spends minutes on a request that is hopeless anyway.
     const getChunk = async (part) => {
       const r = await this.post(`${layerUrl}/query`, {
         objectIds: part.join(','),
@@ -226,10 +226,10 @@ export class ArcGis {
       return r.features || [];
     };
 
-    // Дробление пополам. Размер ответа зависит не от числа объектов, а от их
-    // сложности: тридцать полигонов границ лесничеств на область сервер не
-    // отдаёт вовсе, а четыреста мелких выделов — легко. Заранее подобрать
-    // размер страницы нельзя, поэтому подбираем по факту отказа.
+    // Halving. The size of an answer depends not on the number of objects but
+    // on their complexity: thirty forestry boundary polygons of a region the
+    // server refuses outright, while four hundred small stands come easily.
+    // The page size cannot be guessed ahead, so we settle it by actual refusal.
     const skipped = [];
     const take = async (part, depth = 0) => {
       try {
@@ -238,12 +238,12 @@ export class ArcGis {
         return;
       } catch (e) {
         if (part.length === 1 || depth > 12) {
-          this.log(`  объект ${part[0]} не отдаётся: ${String(e.message).slice(0, 60)}`);
+          this.log(`  object ${part[0]} is not served: ${String(e.message).slice(0, 60)}`);
           skipped.push(...part);
           return;
         }
         const mid = Math.ceil(part.length / 2);
-        this.log(`  дроблю ${part.length} -> ${mid}: ${String(e.message).slice(0, 50)}`);
+        this.log(`  splitting ${part.length} -> ${mid}: ${String(e.message).slice(0, 50)}`);
         await take(part.slice(0, mid), depth + 1);
         await take(part.slice(mid), depth + 1);
       }
@@ -257,7 +257,7 @@ export class ArcGis {
   }
 }
 
-/** Ключ слоя в манифесте: <сервис>_<MS|FS>_<id>. Совместим с архивом. */
+/** Layer key in the manifest: <service>_<MS|FS>_<id>. Matches the archive. */
 export function layerKey(serviceUrl, layerId) {
   const parts = serviceUrl.replace(/\/+$/, '').split('/');
   const kind = parts[parts.length - 1] === 'MapServer' ? 'MS' : 'FS';

@@ -1,18 +1,19 @@
 /**
- * Сборка KML: стили, подписи, разбивка по бюджету вершин, сводный файл.
+ * Building KML: styles, labels, splitting by a vertex budget, index file.
  *
- * Два ограничения формата, определяющие всё устройство:
+ * Two limits of the format shape everything here:
  *
- * 1. KML не показывает подписи у полигонов — это ограничение формата, а не
- *    рендерера. Подпись ставится отдельной точкой-якорем внутри контура с
- *    невидимой иконкой.
- * 2. Google Earth не принимает больше 250 000 ВЕРШИН на файл (не объектов!),
- *    и каждая подпись — это ещё одна вершина.
+ * 1. KML shows no labels on polygons — a limit of the format, not of the
+ *    renderer. A label is placed as a separate anchor point inside the
+ *    outline, with an invisible icon.
+ * 2. Google Earth refuses more than 250 000 VERTICES per file (not objects!),
+ *    and every label is one more vertex.
  */
 
 import { countVertices, labelPoint, outlineOf } from './geometry.js';
 import { SKIP_FIELDS } from './fields.js';
 
+/** Line width grows with the hierarchy, otherwise the levels merge visually. */
 export const DEFAULT_STYLE = {
   lesColor: '#FFD400', lesWidth: 4.5,
   kvColor: '#00A03C', kvWidth: 2.6,
@@ -20,8 +21,41 @@ export const DEFAULT_STYLE = {
   vdFill: 0.12,
 };
 
-/** Толщина растёт по иерархии, иначе на общем плане уровни сливаются. */
-export const VERTEX_BUDGET = 240000; // с запасом к гугловым 250 000
+/** Kept below the Google Earth limit of 250 000 with room to spare. */
+export const VERTEX_BUDGET = 240000;
+
+/**
+ * Text that ends up inside the exported file.
+ *
+ * The data itself is Russian, so Russian stays the default; the app passes
+ * its own language through when the reader wants English.
+ */
+const TEXT = {
+  ru: {
+    outline: 'Границы лесничества',
+    kvartaly: 'Кварталы',
+    kvLabels: 'Подписи кварталов',
+    vydely: 'Выделы',
+    vdLabels: 'Подписи выделов',
+    kv: 'кв',
+    vd: 'выд',
+    kvPrefix: 'КВ',
+    part: (i, n) => ` (часть ${i} из ${n})`,
+  },
+  en: {
+    outline: 'Forestry boundary',
+    kvartaly: 'Blocks',
+    kvLabels: 'Block labels',
+    vydely: 'Stands',
+    vdLabels: 'Stand labels',
+    kv: 'block',
+    vd: 'stand',
+    kvPrefix: 'BL',
+    part: (i, n) => ` (part ${i} of ${n})`,
+  },
+};
+
+const text = (lang) => TEXT[lang] || TEXT.ru;
 
 export function esc(s) {
   return String(s)
@@ -29,7 +63,7 @@ export function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-/** #RRGGBB -> aabbggrr, как принято в KML. */
+/** #RRGGBB -> aabbggrr, the byte order KML expects. */
 export function kmlColor(color, alpha = 1) {
   const c = String(color).trim().replace(/^#/, '');
   if (c.length === 8) return c.toLowerCase();
@@ -66,13 +100,13 @@ function styles(st) {
 
 const coords = (ring) => ring.map(([x, y]) => `${x.toFixed(8)},${y.toFixed(8)},0`).join(' ');
 
-/** Кольцо годится, если это замкнутый контур хотя бы из трёх точек. */
+/** A ring is usable when it is a closed outline of at least three points. */
 const usableRing = (r) => Array.isArray(r) && r.length >= 4
   && r.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
 
 function polygonKml(rings) {
-  // В данных встречаются части мультиполигона без колец — два объекта на
-  // Алматинскую область. Без проверки сборка всего файла падала целиком.
+  // The data contains multipolygon parts with no rings at all — two objects in
+  // the Almaty region. Without this check, building the whole file failed.
   const good = (rings || []).filter(usableRing);
   if (good.length === 0) return '';
   const parts = [
@@ -129,25 +163,26 @@ function folder(name, body) {
   return `<Folder><name>${esc(name)}</name><open>0</open><visibility>1</visibility>\n${body.join('\n')}\n</Folder>`;
 }
 
-/** Текст подписи выдела. */
-function vydelLabel(kv, vd, format) {
+/** Label text of a stand. */
+function vydelLabel(kv, vd, format, T) {
   if (kv === null && vd === null) return '';
-  if (format === 'full') return `кв ${kv} выд ${vd}`;
+  if (format === 'full') return `${T.kv} ${kv} ${T.vd} ${vd}`;
   if (format === 'kv-vd') return `${kv}-${vd}`;
   return String(vd);
 }
 
 /**
- * Один документ KML.
- * Объекты — {properties, geometry, kvartal, vydel}; номера берутся из
- * канонических полей, а не из props: имена полей разнятся по областям, и при
- * слиянии нескольких областей в один файл роли одного слоя дали бы неверные
- * подписи всем остальным.
+ * A single KML document.
+ * Objects are {properties, geometry, kvartal, vydel}; the numbers come from
+ * the canonical fields rather than from props: field names differ between
+ * regions, and when several regions merge into one file the roles of one
+ * layer would mislabel everything else.
  */
 export function buildKml({
   name, vydels = [], kvartaly = [], outline = null,
-  labelFormat = 'vydel', labels = true, style = {}, stats = null,
+  labelFormat = 'vydel', labels = true, style = {}, stats = null, lang = 'ru',
 }) {
+  const T = text(lang);
   const st = { ...DEFAULT_STYLE, ...style };
   const polyL = [], polyK = [], lblK = [], polyV = [], lblV = [];
 
@@ -156,7 +191,7 @@ export function buildKml({
   }
 
   for (const f of kvartaly) {
-    const label = `КВ-${f.kvartal}`;
+    const label = `${T.kvPrefix}-${f.kvartal}`;
     polyK.push(`<Placemark><name>${esc(label)}</name><styleUrl>#kvartal</styleUrl><ExtendedData>${extData(f.properties)}</ExtendedData>${geomKml(f.geometry)}</Placemark>`);
     if (labels) {
       const lp = labelPoint(f.geometry);
@@ -168,14 +203,14 @@ export function buildKml({
 
   let skippedGeom = 0;
   for (const f of vydels) {
-    const full = `кв ${f.kvartal} выд ${f.vydel}`;
+    const full = `${T.kv} ${f.kvartal} ${T.vd} ${f.vydel}`;
     const g = geomKml(f.geometry);
-    if (!g) { skippedGeom += 1; continue; }   // битая геометрия в исходных данных
+    if (!g) { skippedGeom += 1; continue; }   // broken geometry in the source data
     polyV.push(`<Placemark><name>${esc(full)}</name><styleUrl>#vydel</styleUrl><description>${attrTable(f.properties)}</description><ExtendedData>${extData(f.properties)}</ExtendedData>${g}</Placemark>`);
     if (labels) {
       const lp = labelPoint(f.geometry);
       if (lp) {
-        lblV.push(`<Placemark><name>${esc(vydelLabel(f.kvartal, f.vydel, labelFormat))}</name><styleUrl>#lbl_vydel</styleUrl><description>${attrTable(f.properties)}</description><Point><coordinates>${lp.x.toFixed(8)},${lp.y.toFixed(8)},0</coordinates></Point></Placemark>`);
+        lblV.push(`<Placemark><name>${esc(vydelLabel(f.kvartal, f.vydel, labelFormat, T))}</name><styleUrl>#lbl_vydel</styleUrl><description>${attrTable(f.properties)}</description><Point><coordinates>${lp.x.toFixed(8)},${lp.y.toFixed(8)},0</coordinates></Point></Placemark>`);
       }
     }
   }
@@ -183,11 +218,11 @@ export function buildKml({
   if (stats) stats.skippedGeom = (stats.skippedGeom || 0) + skippedGeom;
 
   const body = [];
-  if (polyL.length) body.push(folder('Границы лесничества', polyL));
-  if (polyK.length) body.push(folder('Кварталы', polyK));
-  if (lblK.length) body.push(folder('Подписи кварталов', lblK));
-  if (polyV.length) body.push(folder('Выделы', polyV));
-  if (lblV.length) body.push(folder('Подписи выделов', lblV));
+  if (polyL.length) body.push(folder(T.outline, polyL));
+  if (polyK.length) body.push(folder(T.kvartaly, polyK));
+  if (lblK.length) body.push(folder(T.kvLabels, lblK));
+  if (polyV.length) body.push(folder(T.vydely, polyV));
+  if (lblV.length) body.push(folder(T.vdLabels, lblV));
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
@@ -201,18 +236,19 @@ export function buildKml({
 }
 
 /**
- * Разбить выделы на части так, чтобы каждая уложилась в бюджет вершин.
- * Кварталы и контур идут только в первую часть — иначе их вес дублируется.
+ * Split the stands into parts so that each one fits the vertex budget.
+ * Blocks and the outline go into the first part only — otherwise their
+ * weight is counted again in every part.
  */
 export function planChunks({ vydels, kvartaly = [], outline = null, labels = true, budget = VERTEX_BUDGET }) {
   const lbl = labels ? 1 : 0;
   const fixed = countVertices(outline)
     + kvartaly.reduce((s, f) => s + countVertices(f.geometry) + lbl, 0);
 
-  // Кварталы с контуром бывают тяжелее, чем половина бюджета: у Илийского
-  // лесничества они вытесняли выделы так, что первая часть выходила за лимит
-  // (260 274 вершины при пороге 250 000). Если места под выделы почти не
-  // остаётся, кварталы уезжают в собственный файл.
+  // Blocks plus the outline can weigh more than half the budget: at Iliyskoe
+  // forestry they crowded out the stands so badly that the first part went
+  // over the limit (260 274 vertices against a 250 000 threshold). When
+  // almost no room is left for stands, the blocks move into their own file.
   const room = budget - fixed;
   const separateKvartaly = fixed > 0 && room < budget * 0.25;
 
@@ -234,7 +270,7 @@ export function planChunks({ vydels, kvartaly = [], outline = null, labels = tru
   return { chunks, separateKvartaly, fixed };
 }
 
-/** Сводный файл со ссылками — Google Earth подгружает части сам. */
+/** Index file with links — Google Earth loads the parts on its own. */
 export function buildIndexKml(name, links) {
   const body = links
     .map(({ name: n, href }) => `<NetworkLink><name>${esc(n)}</name><visibility>1</visibility><open>0</open><Link><href>${esc(href)}</href></Link></NetworkLink>`)
@@ -246,15 +282,15 @@ ${body}
 </Document></kml>`;
 }
 
-/** Полный набор файлов для одной группы (лесничества). */
+/** The complete set of files for one group (one forestry). */
 export function buildKmlSet({
   name, vydels, kvartaly = [], labelFormat = 'vydel', labels = true,
-  style = {}, outline = true, budget = VERTEX_BUDGET, stats = null,
+  style = {}, outline = true, budget = VERTEX_BUDGET, stats = null, lang = 'ru',
 }) {
   const og = outline === true ? outlineOf(vydels, kvartaly) : (outline || null);
   const { chunks, separateKvartaly } = planChunks({ vydels, kvartaly, outline: og, labels, budget });
 
-  // Кварталы либо едут в первой части вместе с выделами, либо отдельным файлом
+  // Blocks either travel in the first part together with the stands, or alone
   const parts = separateKvartaly
     ? [{ vydels: [], kvartaly, outline: og }, ...chunks.map((c) => ({ vydels: c, kvartaly: [], outline: null }))]
     : chunks.map((c, i) => ({
@@ -265,7 +301,7 @@ export function buildKmlSet({
 
   const total = parts.length;
   return parts.map((p, i) => {
-    const suffix = total === 1 ? '' : ` (часть ${i + 1} из ${total})`;
+    const suffix = total === 1 ? '' : text(lang).part(i + 1, total);
     return {
       suffix,
       name: name + suffix,
@@ -274,7 +310,7 @@ export function buildKmlSet({
         vydels: p.vydels,
         kvartaly: p.kvartaly,
         outline: p.outline,
-        labelFormat, labels, style, stats,
+        labelFormat, labels, style, stats, lang,
       }),
       counts: { vydels: p.vydels.length, kvartaly: p.kvartaly.length },
     };

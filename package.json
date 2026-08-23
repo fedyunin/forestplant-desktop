@@ -2,7 +2,7 @@
   "name": "forestplant-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Выгрузка данных лесного фонда из ГИС forestplant.gharysh.kz в KML",
+  "description": "Export of forest fund data from the GIS forestplant.gharysh.kz into KML",
   "type": "module",
   "main": "src/main/bootstrap.cjs",
   "scripts": {
@@ -30,6 +30,6 @@
     "eslint": "^10.9.0",
     "globals": "^17.11.0"
   },
-  "author": "КазЛП",
+  "author": "KazLP",
   "license": "UNLICENSED"
 }

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Синхронизация с сервером и сборка базы одной командой.
+ * Sync with the server and build the database in one command.
  *
- *   npm run sync                    -- докачать изменения и обновить базу
- *   npm run sync -- --check         -- только показать, что изменилось
- *   npm run sync -- --retry-failed  -- повторить упавшие слои
- *   npm run sync -- --full          -- перекачать всё заново
+ *   npm run sync                    -- fetch the changes and update the database
+ *   npm run sync -- --check         -- only show what changed
+ *   npm run sync -- --retry-failed  -- retry the layers that failed
+ *   npm run sync -- --full          -- refetch everything from scratch
  */
 
 import { ArcGis } from '../core/arcgis.js';
@@ -24,14 +24,15 @@ const rawDir = opt('raw', 'raw');
 const dbFile = opt('db', 'forest.sqlite');
 const jobs = Number(opt('jobs', 4));
 
-// Учётные данные только из окружения или аргументов: в коде им не место.
-// В приложении они лежат в системной связке ключей (см. src/main/creds.js).
+// Credentials come only from the environment or the arguments: they have no
+// place in the code. In the app they live in the system keychain (see
+// src/main/creds.js).
 const username = process.env.FP_USER || opt('user', null);
 const password = process.env.FP_PASS || opt('pass', null);
 if (!username || !password) {
-  console.error('Нужны учётные данные к ГИС. Задайте переменные окружения:');
-  console.error('  FP_USER=логин FP_PASS=пароль npm run sync');
-  console.error('либо аргументами: npm run sync -- --user логин --pass пароль');
+  console.error('GIS credentials are required. Set the environment variables:');
+  console.error('  FP_USER=login FP_PASS=password npm run sync');
+  console.error('or pass arguments: npm run sync -- --user login --pass password');
   process.exit(1);
 }
 
@@ -44,60 +45,60 @@ let refreshKeys = null;
 
 if (flag('retry-failed')) {
   refreshKeys = Object.values(manifest).filter((r) => !r.ok).map((r) => r.key);
-  console.log(`Повторяю ${refreshKeys.length} слоёв, упавших в прошлый раз`);
+  console.log(`Retrying ${refreshKeys.length} layers that failed last time`);
   if (refreshKeys.length === 0) process.exit(0);
 } else if (!first && !flag('full')) {
-  console.log('Проверяю, что изменилось на сервере...');
+  console.log('Checking what changed on the server...');
   const ch = await findChanges(gis, { rawDir, jobs: 8, onProgress: ({ i, total }) => {
-    if (i % 50 === 0 || i === total) process.stdout.write(`\r  опрошено ${i}/${total}`);
+    if (i % 50 === 0 || i === total) process.stdout.write(`\r  probed ${i}/${total}`);
   } });
   process.stdout.write('\n');
-  console.log(`  изменилось ${ch.changed.length}, новых ${ch.added.length}, исчезло ${ch.removed.length}`);
+  console.log(`  changed ${ch.changed.length}, new ${ch.added.length}, gone ${ch.removed.length}`);
   for (const c of ch.changed.slice(0, 25)) console.log(`     ${c.key} — ${c.why}`);
-  if (ch.changed.length > 25) console.log(`     ... ещё ${ch.changed.length - 25}`);
-  for (const k of ch.removed) console.log(`     ${k} — пропал с сервера, в базе остаётся`);
+  if (ch.changed.length > 25) console.log(`     ... ${ch.changed.length - 25} more`);
+  for (const k of ch.removed) console.log(`     ${k} — gone from the server, kept in the database`);
 
   if (flag('check')) process.exit(0);
   refreshKeys = [...ch.changed.map((c) => c.key), ...ch.added];
-  if (refreshKeys.length === 0) console.log('  изменений нет');
+  if (refreshKeys.length === 0) console.log('  nothing changed');
 } else if (first) {
-  console.log('Первый запуск: качаю всё');
+  console.log('First run: fetching everything');
 }
 
 if (refreshKeys === null || refreshKeys.length > 0) {
-  console.log(`\nВыгрузка (потоков: ${jobs})`);
+  console.log(`\nDump (threads: ${jobs})`);
   const t0 = Date.now();
   const r = await dump(gis, {
     rawDir, jobs, skipExisting: !flag('full'), refreshKeys,
     onProgress: ({ i, total, oblast, path: p, status, count, expected, skipped, error }) => {
-      if (status === 'уже есть') return;
+      if (status === 'skipped') return;
       const where = `${oblast} / ${p.slice(1).join(' / ')}`.slice(0, 60);
       const tail = error ? `— ${error}`
-        : (status === 'качаю' ? `— ${count}/${expected}`
-          : (count != null ? `— ${count} об.${skipped ? `, недоступно ${skipped}` : ''}` : ''));
+        : (status === 'fetching' ? `— ${count}/${expected}`
+          : (count != null ? `— ${count} obj.${skipped ? `, unavailable ${skipped}` : ''}` : ''));
       console.log(`  [${i}/${total}] ${status.padEnd(9)} ${where} ${tail}`);
     },
   });
-  console.log(`\nСлоёв ${r.done}, пропущено ${r.skipped}, ошибок ${r.failed}`);
-  console.log(`Объектов ${r.features.toLocaleString('ru')}, ${(r.bytes / 1073741824).toFixed(2)} ГБ, `
-    + `${((Date.now() - t0) / 60000).toFixed(1)} мин`);
+  console.log(`\nLayers ${r.done}, skipped ${r.skipped}, failed ${r.failed}`);
+  console.log(`Objects ${r.features.toLocaleString('en')}, ${(r.bytes / 1073741824).toFixed(2)} GB, `
+    + `${((Date.now() - t0) / 60000).toFixed(1)} min`);
 }
 
-console.log('\nЗагрузка в базу...');
+console.log('\nLoading into the database...');
 const s = loadFromRaw(dbFile, rawDir);
-console.log(`  загружено ${s.loaded}, обновлено ${s.updated}, без изменений ${s.skipped}`);
+console.log(`  loaded ${s.loaded}, updated ${s.updated}, unchanged ${s.skipped}`);
 
-console.log('Связываю кварталы...');
+console.log('Linking blocks...');
 const links = buildLinks(dbFile);
-console.log(`  по названию ${links.byName}, по географии ${links.byGeo}`);
-console.log(`  лесничеств с кварталами: ${links.forestriesWithKvartaly} из ${links.forestriesTotal}`);
+console.log(`  by name ${links.byName}, by geography ${links.byGeo}`);
+console.log(`  forestries with blocks: ${links.forestriesWithKvartaly} of ${links.forestriesTotal}`);
 
 const st = stats(dbFile);
-console.log(`\nВ базе: ${st.features.toLocaleString('ru')} объектов, расхождений ${st.mismatched.length}`);
+console.log(`\nIn the database: ${st.features.toLocaleString('en')} objects, ${st.mismatched.length} mismatches`);
 
 const bad = Object.values(readManifest(rawDir)).filter((r) => !r.ok);
 if (bad.length) {
   const noRights = bad.filter((r) => /403/.test(r.error || '')).length;
-  console.log(`\nНедоступно слоёв: ${bad.length} (из них нет прав: ${noRights})`);
-  console.log('Повторить только упавшие: npm run sync -- --retry-failed');
+  console.log(`\nUnavailable layers: ${bad.length} (of them no access: ${noRights})`);
+  console.log('Retry the failed ones only: npm run sync -- --retry-failed');
 }

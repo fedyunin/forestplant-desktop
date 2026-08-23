@@ -1,10 +1,10 @@
 /**
- * Хранилище: SQLite поверх сырого архива.
+ * Storage: SQLite on top of the raw archive.
  *
- * Сырые атрибуты пишутся в колонку props ДОСЛОВНО, канонические колонки
- * строятся поверх. Канонические колонки могут оказаться заполнены неверно,
- * props — нет. Поэтому любая ошибка унификации чинится пересчётом из
- * локального архива, без повторного обращения к серверу.
+ * Raw attributes are written to the props column VERBATIM, and the canonical
+ * columns are built on top of them. The canonical columns can turn out wrong;
+ * props cannot. So any mistake in unification is fixed by recomputing from the
+ * local archive, without going back to the server.
  */
 
 import { createRequire } from 'node:module';
@@ -13,10 +13,10 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 
 /**
- * Нативный модуль подгружается лениво, при первом обращении к базе.
+ * The native module is loaded lazily, on the first use of the database.
  *
- * Загрузка на старте, до инициализации Electron, роняла собранное приложение:
- * модули успевали загрузиться, а событие готовности так и не наступало.
+ * Loading it at startup, before Electron was initialised, killed the packaged
+ * app: the modules loaded but the ready event never arrived.
  */
 const require = createRequire(import.meta.url);
 let Database = null;
@@ -38,12 +38,12 @@ CREATE TABLE IF NOT EXISTS layer(
   server_count INTEGER, loaded_count INTEGER, sha256 TEXT
 );
 
--- Атрибуты и тяжёлые данные разнесены намеренно.
+-- Attributes and heavy data are kept apart on purpose.
 --
--- Геометрия занимает 6.8 ГБ из 11, сырые атрибуты — ещё почти гигабайт. Пока
--- всё лежало в одной таблице, любой фильтр по породе тащил с диска гигабайты
--- геометрии, которая ему не нужна: выборка занимала 22 секунды. Разделение
--- оставляет в рабочей таблице только то, по чему ищут.
+-- Geometry takes 6.8 GB out of 11, raw attributes almost another gigabyte.
+-- While everything lived in one table, any filter by species dragged gigabytes
+-- of geometry it did not need off the disk: a query took 22 seconds. Splitting
+-- leaves only what is searched on in the working table.
 CREATE TABLE IF NOT EXISTS feature(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   layer_key TEXT NOT NULL,
@@ -57,28 +57,28 @@ CREATE TABLE IF NOT EXISTS feature(
   minx REAL, miny REAL, maxx REAL, maxy REAL
 );
 
--- Сырые атрибуты дословно и геометрия. Читается только при показе объекта
--- и при экспорте.
+-- Raw attributes verbatim, plus geometry. Read only when showing an object
+-- and when exporting.
 CREATE TABLE IF NOT EXISTS feature_data(
   feature_id INTEGER PRIMARY KEY,
   props TEXT NOT NULL,
   geom TEXT
 );
 
--- Материализованное дерево: без него UI сканирует 1.4 млн строк на каждый
--- клик. Строится один раз при загрузке.
+-- Materialised tree: without it the UI scans 1.4 million rows on every click.
+-- Built once at load time.
 CREATE TABLE IF NOT EXISTS forestry(
   layer_key TEXT PRIMARY KEY,
   oblast TEXT, uchrezhdenie TEXT, lesnichestvo TEXT, les_key TEXT,
   n_vydel INTEGER, n_kvartal INTEGER, vertices INTEGER,
-  -- вес кварталов держим здесь же: без него оценка экспорта каждый раз
-  -- сшивала таблицу связей с миллионом строк и занимала до 30 секунд
+  -- the weight of the blocks is kept right here: without it the export
+  -- estimate joined a link table of a million rows and took up to 30 seconds
   kv_vertices INTEGER DEFAULT 0,
   minx REAL, miny REAL, maxx REAL, maxy REAL
 );
 
--- Справочники для фильтров. Тоже материализованы: группировка по 1.4 млн
--- строк занимала 62 секунды на каждое открытие вкладки.
+-- Lookups for the filters. Materialised as well: grouping over 1.4 million
+-- rows took 62 seconds every time the tab was opened.
 CREATE TABLE IF NOT EXISTS facet(
   col TEXT, value TEXT, n INTEGER,
   PRIMARY KEY (col, value)
@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS ix_f_bbox  ON feature(minx, maxx, miny, maxy);
 CREATE INDEX IF NOT EXISTS ix_fo_obl  ON forestry(oblast, uchrezhdenie, lesnichestvo);
 `;
 
-/** Пересобрать дерево лесничеств из feature. */
+/** Rebuild the forestry tree from feature. */
 const REBUILD_TREE = `
 DELETE FROM forestry;
 INSERT INTO forestry(layer_key, oblast, uchrezhdenie, lesnichestvo, les_key,
@@ -129,24 +129,24 @@ INSERT INTO facet(col, value, n)
 `;
 
 /**
- * Миграции схемы.
+ * Schema migrations.
  *
- * CREATE TABLE IF NOT EXISTS не меняет уже созданные таблицы, поэтому новые
- * колонки нужно добавлять явно и по одному разу. Номер версии хранится в самой
- * базе (PRAGMA user_version), новые шаги дописываются в конец списка.
+ * CREATE TABLE IF NOT EXISTS does not change tables that already exist, so new
+ * columns have to be added explicitly and exactly once. The version number
+ * lives in the database (PRAGMA user_version); new steps go at the end.
  */
 const MIGRATIONS = [
-  // 1 — базовая схема, создаётся из SCHEMA
+  // 1 — the base schema, created from SCHEMA
   () => {},
-  // 2 — вес кварталов рядом с лесничеством, чтобы оценка не сканировала объекты
+  // 2 — block weight next to the forestry, so the estimate scans no objects
   (db) => {
     const cols = db.prepare('PRAGMA table_info(forestry)').all().map((c) => c.name);
     if (!cols.includes('kv_vertices')) {
       db.exec('ALTER TABLE forestry ADD COLUMN kv_vertices INTEGER DEFAULT 0');
     }
   },
-  // 3 — индексы под фильтры по атрибутам: без них выборка по породе
-  // перебирала 1.6 млн строк и занимала 22 секунды
+  // 3 — indexes for the attribute filters: without them a query by species
+  // walked 1.6 million rows and took 22 seconds
   (db) => {
     db.exec(`
       CREATE INDEX IF NOT EXISTS ix_f_poroda   ON feature(poroda, layer_key, nvert);
@@ -156,8 +156,8 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS ix_f_ploshad  ON feature(ploshad);
     `);
   },
-  // 4 — те же индексы, но покрывающие: с kind в начале запросу не нужно
-  // заглядывать в саму таблицу
+  // 4 — the same indexes, but covering: with kind first the query needs no
+  // look into the table itself
   (db) => {
     db.exec(`
       DROP INDEX IF EXISTS ix_f_poroda;
@@ -197,7 +197,7 @@ export function open(file, { write = false } = {}) {
   return db;
 }
 
-/** Версия схемы в файле базы — чтобы приложение могло предупредить о старой. */
+/** Schema version in the database file — so the app can warn about an old one. */
 export function schemaVersion(file) {
   const db = new (sqlite())(file, { readonly: true });
   const v = db.pragma('user_version', { simple: true });
@@ -212,15 +212,15 @@ export function readManifest(rawDir) {
 }
 
 /**
- * Залить архив в базу.
+ * Load the archive into the database.
  *
- * Инкрементально: слой перезаливается, только если у него изменился sha256.
- * onProgress получает {i, total, key, rows, action}.
+ * Incrementally: a layer is reloaded only when its sha256 changed.
+ * onProgress receives {i, total, key, rows, action}.
  */
 export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null } = {}) {
   const manifest = readManifest(rawDir);
   const keys = Object.keys(manifest).sort();
-  if (keys.length === 0) throw new Error(`Пустой манифест в ${rawDir}`);
+  if (keys.length === 0) throw new Error(`Empty manifest in ${rawDir}`);
 
   if (reset) for (const s of ['', '-wal', '-shm']) {
     if (fs.existsSync(dbFile + s)) fs.unlinkSync(dbFile + s);
@@ -255,12 +255,12 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
     i += 1;
     const rec = manifest[key];
     const file = path.join(rawDir, 'layers', `${key}.geojson.gz`);
-    // Грузим всё, для чего есть файл, даже если слой забран не полностью:
-    // данные на диске пригодны, а недобор виден по сверке server_count против
-    // loaded_count. Раньше такие слои молча не попадали в базу вовсе.
+    // Load everything that has a file, even when the layer was not fetched in
+    // full: the data on disk is usable, and a shortfall shows up in the
+    // server_count against loaded_count check. Such layers used to be skipped.
     if (!fs.existsSync(file)) {
       stats.skipped += 1;
-      onProgress?.({ i, total: keys.length, key, action: 'нет данных', rows: 0 });
+      onProgress?.({ i, total: keys.length, key, action: 'no data', rows: 0 });
       continue;
     }
 
@@ -268,7 +268,7 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
       const prev = getLayer.get(key);
       if (prev && prev.sha256 === rec.sha256) {
         stats.skipped += 1;
-        onProgress?.({ i, total: keys.length, key, action: 'без изменений', rows: 0 });
+        onProgress?.({ i, total: keys.length, key, action: 'unchanged', rows: 0 });
         continue;
       }
       if (prev) { delData.run(key); delFeatures.run(key); stats.updated += 1; }
@@ -282,7 +282,7 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
       roles,
     );
 
-    // path = [Группа, Учреждение, Лесничество, "Границы выделов"]
+    // path = [Group, Agency, Forestry, "Границы выделов"]
     const p = rec.path || [];
     const layLes = p.length >= 2 ? p[p.length - 2] : null;
     const layUch = p.length >= 4 ? p[p.length - 3] : null;
@@ -293,10 +293,10 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
       const bb = bbox(g) || {};
       const val = (role) => (roles[role] ? pr[roles[role]] : null);
 
-      // Для выделов имя лесничества берём из дерева слоёв: оно единообразно.
-      // В атрибутах встречаются опечатки — «Каскеленско» вместо «Каскеленское»
-      // у одного выдела из 2024, и группировка по атрибуту его теряла.
-      // Для кварталов слой общий на область, там источник только атрибут.
+      // For stands the forestry name comes from the layer tree: it is uniform
+      // there. The attributes contain typos — «Каскеленско» instead of
+      // «Каскеленское» on one stand from 2024 — and grouping by the attribute
+      // lost it. For blocks the layer is region-wide, so only the attribute is left.
       const les = kind === 'vydel' ? (layLes || val('les')) : (val('les') || layLes);
 
       return [
@@ -312,7 +312,7 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
       ];
     });
 
-    // Тяжёлая часть кладётся отдельно, в том же порядке
+    // The heavy part is stored separately, in the same order
     const blobs = feats.map((f) => [
       JSON.stringify(f.properties || {}),
       f.geometry ? JSON.stringify(f.geometry) : null,
@@ -339,7 +339,7 @@ export function loadFromRaw(dbFile, rawDir, { reset = false, onProgress = null }
   return stats;
 }
 
-/** Сводка и сверка «сервер сказал N — в базе N». */
+/** Summary and the «the server said N — the database holds N» check. */
 export function stats(dbFile) {
   const db = open(dbFile);
   const out = {

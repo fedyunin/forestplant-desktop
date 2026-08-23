@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Запуск приложения.
+ * Starting the application.
  *
- * Отдельный скрипт нужен из-за ELECTRON_RUN_AS_NODE: если эта переменная
- * выставлена в окружении (её оставляют после себя редакторы на Electron —
- * VSCode и подобные), electron стартует как обычная нода, require('electron')
- * возвращает путь к бинарнику вместо API, и приложение падает с невнятным
- * «Cannot read properties of undefined».
+ * A separate script is needed because of ELECTRON_RUN_AS_NODE: when that
+ * variable is set in the environment (Electron-based editors such as VSCode
+ * leave it behind), electron starts as plain node, require('electron')
+ * returns the path to the binary instead of the API, and the application
+ * dies with an obscure «Cannot read properties of undefined».
  */
 
 import { spawn } from 'node:child_process';

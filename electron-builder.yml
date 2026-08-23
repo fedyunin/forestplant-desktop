@@ -6,30 +6,30 @@ directories:
   output: dist
   buildResources: build
 
-# В сборку идёт только то, что нужно приложению: сырой архив и база остаются
-# снаружи — их путь пользователь задаёт сам на вкладке «Данные».
+# Only what the application needs goes into the build: the raw archive and the
+# database stay outside — the user sets their path in the settings.
 files:
   - src/**/*
   - package.json
   - "!**/*.map"
 
-# better-sqlite3 — нативный модуль, его нужно пересобрать под Electron
+# better-sqlite3 is a native module, it has to be rebuilt for Electron
 npmRebuild: true
 asarUnpack:
   - "**/node_modules/better-sqlite3/**"
 
 mac:
-  # Имя бандла обязано быть латиницей: с кириллицей собранное приложение
-  # не проходит инициализацию Electron и падает при запуске. Русское название
-  # задаётся отдельно, через CFBundleDisplayName.
+  # The bundle name must be ASCII: with Cyrillic the built application fails
+  # Electron initialisation and dies at startup. The display name is set
+  # separately, through CFBundleDisplayName.
   extendInfo:
-    CFBundleDisplayName: Лесной фонд
+    CFBundleDisplayName: Forest Fund
   category: public.app-category.utilities
   target:
     - target: dmg
       arch: [arm64, x64]
-  # Настоящего сертификата нет, но на Apple Silicon бинарник обязан быть
-  # подписан хотя бы формально, иначе система его убивает при запуске.
+  # There is no real certificate, but on Apple Silicon a binary has to be
+  # signed at least formally, or the system kills it at startup.
   identity: "-"
   hardenedRuntime: false
   entitlements: build/entitlements.mac.plist
@@ -44,7 +44,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
-  shortcutName: Лесной фонд
+  shortcutName: Forest Fund
 
 linux:
   target: [AppImage]

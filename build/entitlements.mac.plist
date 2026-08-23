@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
   <!--
-    Формальная подпись без сертификата Apple: без отказа от проверки библиотек
-    система убивает приложение при загрузке нативного модуля better-sqlite3.
-    При появлении настоящего Developer ID эти два ключа можно убрать.
+    Ad-hoc signing without an Apple certificate: without waiving library
+    validation the system kills the app as it loads the native module
+    better-sqlite3. Once a real Developer ID exists these two keys can go.
   -->
   <key>com.apple.security.cs.disable-library-validation</key>
   <true/>
   <!--
-    V8 компилирует код на лету, и без права на JIT он не может зарезервировать
-    исполняемую память: приложение падает с «Failed to reserve virtual memory
-    for CodeRange». Права allow-unsigned-executable-memory здесь не нужно — на
-    Apple Silicon оно как раз мешает.
+    V8 compiles code on the fly, and without the JIT entitlement it cannot
+    reserve executable memory: the app dies with «Failed to reserve virtual
+    memory for CodeRange». allow-unsigned-executable-memory is not needed
+    here — on Apple Silicon it actually gets in the way.
   -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>

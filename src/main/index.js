@@ -1,14 +1,14 @@
 /**
- * Главный процесс Electron.
+ * Electron main process.
  *
- * Окно рендерера изолировано: nodeIntegration выключен, contextIsolation и
- * sandbox включены, весь доступ к данным идёт через типизированный IPC.
- * Ничего из node в рендерер не пробрасывается.
+ * The renderer window is isolated: nodeIntegration off, contextIsolation and
+ * sandbox on, every data access goes through typed IPC. Nothing from node is
+ * exposed to the renderer.
  */
 
-// electron — нативный CommonJS-модуль: ни именованный, ни default импорт из
-// ESM его не отдают. createRequire решает это, не заставляя переводить весь
-// остальной код на CommonJS.
+// electron is a native CommonJS module: neither a named nor a default import
+// from ESM yields it. createRequire solves that without forcing the rest of
+// the code back onto CommonJS.
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,10 +18,10 @@ const require = createRequire(import.meta.url);
 const { app, BrowserWindow, dialog, shell, ipcMain } = require('electron');
 
 /**
- * Журнал запуска.
+ * Startup log.
  *
- * В собранном приложении вывод в консоль никто не видит, и падение при старте
- * выглядит как «просто не открывается». Пишем в файл рядом с настройками.
+ * In a packaged application nobody sees console output, and a crash at startup
+ * looks like «it just does not open». So we write to a file next to the settings.
  */
 const logFile = path.join(app.getPath('userData'), 'app.log');
 function log(msg) {
@@ -29,19 +29,19 @@ function log(msg) {
   try {
     fs.mkdirSync(path.dirname(logFile), { recursive: true });
     fs.appendFileSync(logFile, line);
-  } catch { /* журнал не должен мешать работе */ }
+  } catch { /* the log must not get in the way */ }
   process.stdout.write(line);
 }
 
 process.on('uncaughtException', (e) => {
-  log(`НЕПЕРЕХВАЧЕННАЯ ОШИБКА: ${e?.stack || e}`);
+  log(`UNCAUGHT EXCEPTION: ${e?.stack || e}`);
   app.exit(1);
 });
 process.on('unhandledRejection', (e) => {
-  log(`НЕОБРАБОТАННЫЙ ОТКАЗ: ${e?.stack || e}`);
+  log(`UNHANDLED REJECTION: ${e?.stack || e}`);
 });
 
-log(`запуск, версия ${app.getVersion()}, упаковано=${app.isPackaged}`);
+log(`start, version ${app.getVersion()}, packaged=${app.isPackaged}`);
 
 import { registerHandlers } from './ipc.js';
 import { stopEngine } from './engine-client.js';
@@ -56,44 +56,44 @@ function createWindow() {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: 'Лесной фонд — выгрузка',
+    title: 'Forest Fund',
     backgroundColor: '#14161a',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      // Chromium душит таймеры в фоновом окне: прогресс синхронизации и
-      // экспорта замирал бы, стоит переключиться на другое приложение.
+      // Chromium throttles timers in a background window: the progress of a
+      // sync or an export would freeze as soon as you switch to another app.
       backgroundThrottling: false,
     },
   });
 
-  // Без этого ошибки в окне не видны нигде: рендерер падает молча.
-  // Сигнатура события менялась между версиями Electron — поддерживаем обе,
-  // иначе обработчик молча ничего не ловит.
+  // Without this, errors in the window are visible nowhere: the renderer dies
+  // silently. The signature of the event changed between Electron versions —
+  // we support both, otherwise the handler quietly catches nothing.
   win.webContents.on('console-message', (e, level, message, line, source) => {
     const lvl = typeof e === 'object' && e?.level !== undefined ? e.level : level;
     const msg = typeof e === 'object' && e?.message !== undefined ? e.message : message;
     const src = typeof e === 'object' && e?.sourceId !== undefined ? e.sourceId : source;
     const ln = typeof e === 'object' && e?.lineNumber !== undefined ? e.lineNumber : line;
     const bad = lvl === 'error' || lvl === 'warning' || Number(lvl) >= 2;
-    if (bad) log(`[окно] ${String(src).split('/').pop()}:${ln} ${msg}`);
+    if (bad) log(`[window] ${String(src).split('/').pop()}:${ln} ${msg}`);
   });
   win.webContents.on('render-process-gone', (_e, details) => {
-    console.error('[окно] процесс упал:', details.reason);
+    console.error('[window] the process died:', details.reason);
   });
   win.webContents.on('did-fail-load', (_e, code, desc) => {
-    log(`окно НЕ загрузилось: ${desc} (${code})`);
+    log(`the window did NOT load: ${desc} (${code})`);
   });
   win.webContents.on('did-finish-load', () => {
-    log('окно загрузилось');
+    log('the window loaded');
     if (process.argv.includes('--smoke')) runSmoke(win);
   });
 
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  // Внешние ссылки — в системный браузер, не в окно приложения
+  // External links go to the system browser, not into the application window
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -101,24 +101,27 @@ function createWindow() {
 }
 
 /**
- * Самопроверка окна: `npm start -- --smoke`.
+ * Self-check of the window: `npm start -- --smoke`.
  *
- * Проверяет то, что иначе видно только глазами — что дерево отрисовалось,
- * справочники подтянулись, выбор работает и оценка считается. Без неё ошибка
- * в рендерере обнаруживается только когда её увидит человек.
+ * It checks what is otherwise only visible by eye — that the tree rendered,
+ * the lookups arrived, picking works and the estimate is computed. Without it
+ * a bug in the renderer is found only when a person runs into it.
+ *
+ * The assertions read data attributes and numbers rather than the visible
+ * text, so switching the interface language cannot break them.
  */
 async function runSmoke(w) {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   let failed = 0;
   const check = (name, cond, detail = '') => {
-    console.log(`  ${cond ? 'OK  ' : 'СБОЙ'} ${name}${detail ? ` — ${detail}` : ''}`);
+    console.log(`  ${cond ? 'OK  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
     if (!cond) failed += 1;
   };
   const js = (code) => w.webContents.executeJavaScript(code);
 
   try {
     await wait(3000);
-    console.log('\nСамопроверка окна:');
+    console.log('\nWindow self-check:');
 
     const d = await js(`(() => ({
       info: document.getElementById('dbinfo').textContent,
@@ -126,11 +129,13 @@ async function runSmoke(w) {
       cols: document.querySelectorAll('#dHead th').length,
       list: document.querySelectorAll('#dList .row:not(.head)').length,
       count: document.getElementById('dCount').textContent,
+      lang: document.documentElement.lang,
     }))()`);
-    check('база открыта', !d.info.includes('не открыта'), d.info);
-    check('таблица объектов', d.rows > 0 && d.cols > 0, `${d.rows} строк, ${d.cols} колонок`);
-    check('список лесничеств', d.list > 0, `${d.list}`);
-    check('счётчик выборки', /объектов/.test(d.count), d.count);
+    check('database open', /\d/.test(d.info), d.info);
+    check('object table', d.rows > 0 && d.cols > 0, `${d.rows} rows, ${d.cols} columns`);
+    check('forestry list', d.list > 0, `${d.list}`);
+    check('selection counter', /\d/.test(d.count), d.count);
+    check('interface translated', d.lang === 'ru' || d.lang === 'en', d.lang);
 
     const det = await js(`(async () => {
       document.querySelector('#dBody tr').click();
@@ -138,7 +143,7 @@ async function runSmoke(w) {
       return { open: !document.getElementById('dDetail').hidden,
                fields: document.querySelectorAll('#dDetailBody .kv dt').length };
     })()`);
-    check('карточка объекта', det.open && det.fields > 10, `полей ${det.fields}`);
+    check('object card', det.open && det.fields > 10, `${det.fields} fields`);
 
     const srch = await js(`(async () => {
       const i = document.getElementById('dSearch');
@@ -149,62 +154,83 @@ async function runSmoke(w) {
       await new Promise(r => setTimeout(r, 400));
       return n;
     })()`);
-    check('поиск по списку', srch > 0 && srch < 20, `найдено ${srch}`);
+    check('search in the list', srch > 0 && srch < 20, `${srch} found`);
 
-    // SQL как второй способ собрать выборку: запрос с колонкой id должен
-    // стать выборкой, пригодной к экспорту, а без неё — остаться отчётом.
+    // Both languages must render: a missing key or a broken re-render shows up
+    // as a label that stayed in the other language.
+    const lang = await js(`(async () => {
+      const sel = document.getElementById('sLang');
+      const was = sel.value;
+      const label = () => document.querySelector('.tab[data-tab="data"]').textContent;
+      sel.value = 'en'; sel.dispatchEvent(new Event('change'));
+      await new Promise(r => setTimeout(r, 900));
+      const en = label();
+      sel.value = 'ru'; sel.dispatchEvent(new Event('change'));
+      await new Promise(r => setTimeout(r, 900));
+      const ru = label();
+      sel.value = was; sel.dispatchEvent(new Event('change'));
+      await new Promise(r => setTimeout(r, 900));
+      return { en, ru, back: label() };
+    })()`);
+    check('language switch', lang.en === 'Data' && lang.ru === 'Данные',
+      `en=${lang.en} ru=${lang.ru} restored=${lang.back}`);
+
+    // SQL as the second way of building a selection: a query with an id column
+    // must become a selection fit for export, and one without it stays a report.
     const sqlSel = await js(`(async () => {
+      document.querySelector('.tab[data-tab="data"]').click();
       document.querySelector('#dModes .mode[data-mode="sql"]').click();
       await new Promise(r => setTimeout(r, 300));
       document.getElementById('dSqlText').value =
         "SELECT id, lesnichestvo, kvartal, vydel FROM feature WHERE kind='vydel' AND poroda='Сосна' AND ploshad > 50";
       document.getElementById('dSqlRun').click();
       await new Promise(r => setTimeout(r, 4000));
-      return { info: document.getElementById('dSqlInfo').textContent,
-               rows: document.querySelectorAll('#dBody tr').length,
-               count: document.getElementById('dCount').textContent };
+      const info = document.getElementById('dSqlInfo');
+      return { kind: info.dataset.kind, total: Number(info.dataset.total || 0),
+               text: info.textContent,
+               rows: document.querySelectorAll('#dBody tr').length };
     })()`);
-    check('SQL даёт выборку', /выборка/.test(sqlSel.info) && sqlSel.rows > 0,
-      `${sqlSel.info} · в таблице ${sqlSel.rows}`);
+    check('SQL yields a selection', sqlSel.kind === 'selection' && sqlSel.rows > 0,
+      `${sqlSel.text} · ${sqlSel.rows} in the table`);
 
-    // Оценка обязана считать по тому же условию: быстрый путь однажды
-    // проигнорировал SQL и показал всю базу вместо выборки.
+    // The estimate must count by the same condition: the fast path once
+    // ignored the SQL and showed the whole database instead of the selection.
     const sqlPrev = await js(`(async () => {
-      const shown = Number((document.getElementById('dSqlInfo').textContent.match(/([\\d\\s ]+) объектов/) || [])[1]
-        ?.replace(/\\D/g, '') || 0);
+      const shown = Number(document.getElementById('dSqlInfo').dataset.total || 0);
       const r = await window.api.exportData.preview(
         { sql: document.getElementById('dSqlText').value }, {});
       return { shown, est: r.ok ? r.data.vydels : -1 };
     })()`);
-    check('оценка совпадает с выборкой SQL', sqlPrev.shown > 0 && sqlPrev.shown === sqlPrev.est,
-      `в выборке ${sqlPrev.shown}, в оценке ${sqlPrev.est}`);
+    check('estimate matches the SQL selection', sqlPrev.shown > 0 && sqlPrev.shown === sqlPrev.est,
+      `${sqlPrev.shown} selected, ${sqlPrev.est} estimated`);
 
     const sqlRep = await js(`(async () => {
       document.getElementById('dSqlText').value =
         "SELECT poroda, COUNT(*) n FROM feature WHERE kind='vydel' GROUP BY poroda ORDER BY n DESC LIMIT 10";
       document.getElementById('dSqlRun').click();
       await new Promise(r => setTimeout(r, 4000));
-      return { info: document.getElementById('dSqlInfo').textContent,
+      const info = document.getElementById('dSqlInfo');
+      return { kind: info.dataset.kind, text: info.textContent,
                rows: document.querySelectorAll('#dBody tr').length };
     })()`);
-    check('SQL без id — отчёт', /отчёт/.test(sqlRep.info) && sqlRep.rows > 0,
-      `${sqlRep.info.slice(0, 70)}`);
+    check('SQL without id is a report', sqlRep.kind === 'report' && sqlRep.rows > 0,
+      `${sqlRep.text.slice(0, 70)}`);
 
     const fromFilters = await js(`(async () => {
       document.getElementById('dSqlFromFilters').click();
       await new Promise(r => setTimeout(r, 800));
       return document.getElementById('dSqlText').value;
     })()`);
-    check('фильтры переводятся в SQL', /SELECT id/.test(fromFilters), fromFilters.split('\n')[0]);
+    check('filters translate into SQL', /SELECT id/.test(fromFilters), fromFilters.split('\n')[0]);
 
-    // вернуться к фильтрам, чтобы дальнейшие проверки шли по обычному пути
+    // back to the filters, so the rest of the checks take the ordinary path
     await js(`(async () => {
       document.querySelector('#dModes .mode[data-mode="filters"]').click();
       await new Promise(r => setTimeout(r, 600));
     })()`);
 
-    // Ради этого база и вынесена в отдельный процесс: пока идёт тяжёлый
-    // запрос, окно обязано оставаться живым. Раньше оно замирало.
+    // This is what the separate database process is for: while a heavy query
+    // runs, the window has to stay alive. It used to freeze.
     const alive = await js(`(async () => {
       const t0 = Date.now();
       const slow = window.api.db.query(
@@ -222,79 +248,71 @@ async function runSmoke(w) {
       clearInterval(timer);
       return { total: Date.now() - t0, ticks, worst: Math.max(...quick), rows: r.ok ? r.data.rows.length : -1 };
     })()`);
-    check('окно живо во время запроса', alive.ticks > 10,
-      `таймер сработал ${alive.ticks} раз за ${alive.total} мс`);
-    check('короткие вызовы не встают в очередь', alive.worst < 1500,
-      `худший ответ ${alive.worst} мс`);
+    check('window alive during a query', alive.ticks > 10,
+      `the timer fired ${alive.ticks} times over ${alive.total} ms`);
+    check('short calls do not queue up', alive.worst < 1500,
+      `worst answer ${alive.worst} ms`);
 
     const ex = await js(`(async () => {
       document.querySelector('.tab[data-tab="export"]').click();
       await new Promise(r => setTimeout(r, 400));
       document.querySelector('#eList .row:not(.head)').click();
       await new Promise(r => setTimeout(r, 900));
+      const line = document.getElementById('eLine');
       return { tags: document.querySelectorAll('#ePicked .tag').length,
-               line: document.getElementById('eLine').textContent,
+               line: line.textContent, vydels: Number(line.dataset.vydels || 0),
                opts: document.querySelectorAll('#eOpts [data-k]').length,
                btn: !document.getElementById('eRun').disabled };
     })()`);
-    check('выбор для экспорта', ex.tags === 1, `фишек ${ex.tags}`);
-    check('настройки формата', ex.opts > 8, `полей ${ex.opts}`);
-    check('оценка выборки', /выделов/.test(ex.line), ex.line.slice(0, 60));
-    check('кнопка выгрузки', ex.btn);
+    check('export selection', ex.tags === 1, `${ex.tags} tags`);
+    check('format settings', ex.opts > 8, `${ex.opts} fields`);
+    check('selection estimate', ex.vydels > 0, ex.line.slice(0, 60));
+    check('export button', ex.btn);
 
-    // Ждём не по таймеру, а по факту: в собранном приложении первые вызовы
-    // холоднее, и фиксированная пауза то хватала, то нет.
+    // We wait on the fact rather than on a timer: in the packaged application
+    // the first calls are colder, and a fixed pause was sometimes too short.
     const st = await js(`(async () => {
       document.querySelector('.tab[data-tab="settings"]').click();
+      let dir = null;
       for (let i = 0; i < 60; i++) {
-        if (!document.getElementById('sDataDir').textContent.includes('не выбран')
-            && document.querySelectorAll('#sSchemas .schema').length > 0) break;
+        const s = await window.api.settings.status();
+        dir = s.ok ? s.data.dataDir : null;
+        if (dir && document.querySelectorAll('#sSchemas .schema').length > 0) break;
         await new Promise(r => setTimeout(r, 500));
       }
-      return { dir: document.getElementById('sDataDir').textContent,
+      return { dir,
                stats: document.querySelectorAll('#sStore .stat').length,
                bad: document.querySelectorAll('#sBad tr').length,
                schemas: document.querySelectorAll('#sSchemas .schema').length };
     })()`);
-    if (st.dir.includes('не выбран')) {
-      const probe = await js(`(async () => {
-        const active = document.getElementById('page-settings').classList.contains('active');
-        const tabOn = document.querySelector('.tab[data-tab="settings"]').classList.contains('active');
-        let direct = 'не вызывался';
-        try { await loadSettings(); direct = document.getElementById('sDataDir').textContent; }
-        catch (e) { direct = 'ОШИБКА ' + (e && e.message ? e.message : e); }
-        return { active, tabOn, direct };
-      })()`);
-      log(`[проба] страница активна=${probe.active}, вкладка активна=${probe.tabOn}, прямой вызов -> ${probe.direct}`);
-    }
-    check('каталог данных', !st.dir.includes('не выбран'), st.dir);
-    check('сводка хранилища', st.stats >= 6, `${st.stats} показателей`);
-    check('состояние архива', st.bad > 1, `${st.bad - 1} проблемных слоёв`);
-    check('схемы полей', st.schemas > 0, `${st.schemas}`);
+    check('data folder', Boolean(st.dir), st.dir || '—');
+    check('storage summary', st.stats >= 6, `${st.stats} figures`);
+    check('archive state', st.bad > 1, `${st.bad - 1} problem layers`);
+    check('field schemas', st.schemas > 0, `${st.schemas}`);
   } catch (e) {
-    console.error('  СБОЙ самопроверки:', e.message);
+    console.error('  self-check FAILED:', e.message);
     failed += 1;
   }
 
-  console.log(failed === 0 ? '\nВсё в порядке' : `\nПроблем: ${failed}`);
+  console.log(failed === 0 ? '\nAll good' : `\nProblems: ${failed}`);
   app.exit(failed === 0 ? 0 : 1);
 }
 
 app.whenReady().then(() => {
-  log('приложение готово');
+  log('application ready');
   registerHandlers(ipcMain, { getWindow: () => win, dialog, shell, log });
-  log('обработчики IPC зарегистрированы');
+  log('IPC handlers registered');
   createWindow();
-  log(`окно создано: ${Boolean(win)}`);
+  log(`window created: ${Boolean(win)}`);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-}).catch((e) => log(`СБОЙ ПРИ ЗАПУСКЕ: ${e?.stack || e}`));
+}).catch((e) => log(`STARTUP FAILURE: ${e?.stack || e}`));
 
 app.on('window-all-closed', () => {
-  log('все окна закрыты');
+  log('all windows closed');
   if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('will-quit', () => { log('завершение работы'); stopEngine(); });
+app.on('will-quit', () => { log('shutting down'); stopEngine(); });

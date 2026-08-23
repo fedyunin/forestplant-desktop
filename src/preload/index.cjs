@@ -1,8 +1,8 @@
 /**
- * Мост между главным процессом и окном.
+ * Bridge between the main process and the window.
  *
- * В окно уходит только этот объект — ни require, ни ipcRenderer напрямую.
- * Список каналов закрытый: новый можно добавить только правкой здесь.
+ * Only this object reaches the window — no require, no ipcRenderer directly.
+ * The channel list is closed: a new one can only be added by editing here.
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
   settings: {
     status: () => call('settings:status'),
     pickDataDir: () => call('settings:pickDataDir'),
+    setLanguage: (lang) => call('settings:setLanguage', lang),
     reveal: (what) => call('settings:reveal', what),
     credsSave: (u, p) => call('creds:save', u, p),
     credsClear: () => call('creds:clear'),

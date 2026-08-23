@@ -1,23 +1,23 @@
 /**
- * Привязка кварталов к лесничествам.
+ * Linking blocks to forestries.
  *
- * Слой кварталов в системе общий на область, и связать его с лесничеством
- * можно только по названию. Но названия расходятся: у выделов «Байнкольское»,
- * у кварталов «Байынкольское»; «Аксуское» против «Аксуйское». Подгонять
- * написания вручную — путь в бесконечный список исключений.
+ * The block layer in the system is region-wide, and the only way to tie it to
+ * a forestry is by name. But the names disagree: the stands say «Байнкольское»
+ * while the blocks say «Байынкольское»; «Аксуское» against «Аксуйское».
+ * Reconciling spellings by hand leads to an endless list of exceptions.
  *
- * Поэтому: сначала точное совпадение нормализованных ключей, а для оставшихся
- * — по географии. Квартал принадлежит лесничеству, если его центр попадает в
- * рамку лесничества и номер квартала есть среди его выделов. Это опирается на
- * сами данные, а не на написание.
+ * So: first an exact match of normalised keys, then geography for whatever is
+ * left. A block belongs to a forestry when its centre falls inside the
+ * forestry bbox and its number appears among that forestry's stands. That
+ * leans on the data itself instead of on spelling.
  */
 
 import { open } from './db.js';
 
 const LINK_SCHEMA = `
 CREATE TABLE IF NOT EXISTS kvartal_link(
-  layer_key TEXT NOT NULL,     -- лесничество (forestry.layer_key)
-  feature_id INTEGER NOT NULL, -- квартал (feature.id)
+  layer_key TEXT NOT NULL,     -- forestry (forestry.layer_key)
+  feature_id INTEGER NOT NULL, -- block (feature.id)
   how TEXT,                    -- 'name' | 'geo'
   PRIMARY KEY (layer_key, feature_id)
 );
@@ -32,7 +32,7 @@ export function buildLinks(dbFile, { onProgress = null } = {}) {
   const ins = db.prepare('INSERT OR IGNORE INTO kvartal_link(layer_key, feature_id, how) VALUES (?,?,?)');
   const insAll = db.transaction((rows) => { for (const r of rows) ins.run(r); });
 
-  // 1) точное совпадение нормализованных названий
+  // 1) exact match of normalised names
   const byName = db.prepare(`
     SELECT f.layer_key, k.id
     FROM forestry f
@@ -40,13 +40,13 @@ export function buildLinks(dbFile, { onProgress = null } = {}) {
     WHERE f.les_key <> ''
   `).all();
   insAll(byName.map((r) => [r.layer_key, r.id, 'name']));
-  onProgress?.({ stage: 'по названию', linked: byName.length });
+  onProgress?.({ stage: 'by name', linked: byName.length });
 
-  // 2) осиротевшие кварталы — по географии.
+  // 2) orphaned blocks — by geography.
   //
-  // Идём именно от кварталов, а не от лесничеств без связей: иначе квартал с
-  // опечаткой в названии остаётся ничьим, даже когда его лесничество в целом
-  // сопоставилось по имени. Ровно так терялся один квартал Каскеленского.
+  // We start from the blocks rather than from forestries without links: a
+  // block whose name is misspelled would otherwise stay unclaimed even when
+  // its forestry matched by name. Exactly one Kaskelenskoe block was lost so.
   const orphans = db.prepare(`
     SELECT id, oblast, kvartal, minx, miny, maxx, maxy FROM feature
     WHERE kind='kvartal' AND minx IS NOT NULL
@@ -61,7 +61,7 @@ export function buildLinks(dbFile, { onProgress = null } = {}) {
     fByOblast.get(f.oblast).push(f);
   }
 
-  // номера кварталов каждого лесничества — по ним отсекаем ложные попадания
+  // block numbers of each forestry — they rule out false hits
   const numsByLayer = new Map();
   for (const r of db.prepare(
     "SELECT layer_key, kvartal FROM feature WHERE kind='vydel' AND kvartal IS NOT NULL GROUP BY layer_key, kvartal",
@@ -79,7 +79,7 @@ export function buildLinks(dbFile, { onProgress = null } = {}) {
     const cx = (k.minx + k.maxx) / 2;
     const cy = (k.miny + k.maxy) / 2;
 
-    // из подходящих берём лесничество с наименьшей рамкой — самое тесное
+  // among the candidates take the forestry with the smallest bbox — the tightest
     let best = null, bestArea = Infinity;
     for (const f of pool) {
       if (cx < f.minx || cx > f.maxx || cy < f.miny || cy > f.maxy) continue;
@@ -88,13 +88,13 @@ export function buildLinks(dbFile, { onProgress = null } = {}) {
       if (area < bestArea) { bestArea = area; best = f; }
     }
     if (best) geoRows.push([best.layer_key, k.id, 'geo']);
-    if (done % 2000 === 0) onProgress?.({ stage: 'по географии', done, total: orphans.length });
+    if (done % 2000 === 0) onProgress?.({ stage: 'by geography', done, total: orphans.length });
   }
   insAll(geoRows);
-  onProgress?.({ stage: 'по географии', linked: geoRows.length, orphans: orphans.length });
+  onProgress?.({ stage: 'by geography', linked: geoRows.length, orphans: orphans.length });
 
-  // счётчики в дереве — из фактических связей. Вес кварталов сохраняем тоже:
-  // оценка экспорта берёт его отсюда вместо сшивки таблиц на каждый клик.
+  // the counters in the tree come from the actual links. The block weight is
+  // kept too: the export estimate reads it here instead of joining tables.
   db.exec(`
     UPDATE forestry SET
       n_kvartal = (SELECT COUNT(*) FROM kvartal_link l WHERE l.layer_key = forestry.layer_key),

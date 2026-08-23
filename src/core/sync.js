@@ -1,13 +1,13 @@
 /**
- * Синхронизация: выгрузка слоёв в сырой архив и определение изменений.
+ * Syncing: dumping layers into the raw archive and spotting changes.
  *
- * Архив — источник истины: `raw/layers/<ключ>.geojson.gz` плюс манифест с
- * URL, счётчиком сервера, отпечатком и sha256. База пересобирается из архива,
- * обратно — нет.
+ * The archive is the source of truth: `raw/layers/<key>.geojson.gz` plus a
+ * manifest with the URL, the server count, a fingerprint and sha256. The
+ * database is rebuilt from the archive, never the other way round.
  *
- * Каждый слой качается ровно один раз и сверяется: «сервер обещал N —
- * забрали N». Расхождение помечается ok:false и перекачивается при следующем
- * запуске.
+ * Every layer is downloaded exactly once and verified: «the server promised
+ * N — we took N». A mismatch is marked ok:false and refetched on the next
+ * run.
  */
 
 import crypto from 'node:crypto';
@@ -17,7 +17,7 @@ import zlib from 'node:zlib';
 
 import { layerKey, isVydelPath } from './arcgis.js';
 
-/** Выполнить задачи пулом заданной ширины. */
+/** Run tasks through a pool of the given width. */
 async function pool(items, width, worker) {
   const results = new Array(items.length);
   let next = 0;
@@ -43,7 +43,7 @@ function writeManifest(rawDir, manifest) {
   fs.renameSync(`${p}.part`, p);
 }
 
-/** Все слои системы: выделы, кварталы и прочее. */
+/** Every layer of the system: stands, blocks and the rest. */
 export async function dumpTargets(gis) {
   const out = [];
   const seen = new Set();
@@ -53,10 +53,10 @@ export async function dumpTargets(gis) {
     try {
       tree = await gis.tree(svc.url);
     } catch (e) {
-      gis.log(`пропуск сервиса ${svc.title}: ${e.message}`);
+      gis.log(`skipping service ${svc.title}: ${e.message}`);
       continue;
     }
-    // общий по области слой кварталов лежит в корне сервиса
+    // the region-wide block layer sits at the root of the service
     const kv = tree.find((l) => l.path.length === 1 && /квартал/i.test(l.path[0]));
 
     for (const l of tree) {
@@ -74,7 +74,7 @@ export async function dumpTargets(gis) {
     }
   }
 
-  // отдельные слои FeatureServer из веб-карты (посадки, питомники, семена)
+  // separate FeatureServer layers from the web map (plantings, nurseries, seeds)
   try {
     const wm = await gis.webmap();
     for (const l of wm.operationalLayers || []) {
@@ -89,13 +89,13 @@ export async function dumpTargets(gis) {
       out.push({ key, kind: 'misc', oblast: l.title || '', serviceUrl: base, layerId: id, path: [l.title || ''] });
     }
   } catch (e) {
-    gis.log(`не удалось перечислить слои FeatureServer: ${e.message}`);
+    gis.log(`could not list the FeatureServer layers: ${e.message}`);
   }
   return out;
 }
 
 /**
- * Выгрузка. refreshKeys — принудительно перекачать только эти слои.
+ * The dump. refreshKeys — force a refetch of these layers only.
  * onProgress({i, total, key, oblast, path, status, count, bytes, error}).
  */
 export async function dump(gis, {
@@ -113,7 +113,7 @@ export async function dump(gis, {
   const manifest = readManifest(rawDir);
   try {
     fs.writeFileSync(path.join(rawDir, 'meta', '_webmap.json'), JSON.stringify(await gis.webmap()));
-  } catch { /* снимок веб-карты не критичен */ }
+  } catch { /* a snapshot of the web map is not critical */ }
 
   const stats = { done: 0, skipped: 0, failed: 0, features: 0, bytes: 0 };
   let counter = 0;
@@ -132,7 +132,7 @@ export async function dump(gis, {
     if (skipExisting && !refresh?.has(t.key) && rec?.ok
         && fs.existsSync(file) && fs.statSync(file).size === rec.bytes) {
       stats.skipped += 1;
-      report('уже есть');
+      report('skipped');
       return;
     }
 
@@ -144,15 +144,15 @@ export async function dump(gis, {
       const fields = (meta.fields || []).map((f) => f.name);
       const probe = await gis.probe(layerUrl, fields);
 
-      // прогресс внутри слоя: у крупных слоёв выкачка идёт тысячами запросов,
-      // и без этого зависание неотличимо от «просто долго»
+      // progress inside a layer: big layers are fetched in thousands of
+      // requests, and without this a hang looks exactly like «just slow»
       let lastTick = 0;
       const { features, expected, skipped } = await gis.fetchLayer(layerUrl, {
         onChunk: (got, total) => {
           const now = Date.now();
           if (now - lastTick < 3000 && got < total) return;
           lastTick = now;
-          report('качаю', { count: got, expected: total });
+          report('fetching', { count: got, expected: total });
         },
       });
 
@@ -177,9 +177,9 @@ export async function dump(gis, {
         sha256,
         bytes,
         probe,
-        // Отдельные записи сервер не отдаёт вовсе: на них он отвечает
-        // «Failed to execute query» даже поштучно. Такой слой считается
-        // забранным полностью — иначе он вечно перекачивался бы впустую.
+        // Some records the server refuses outright: it answers «Failed to
+        // execute query» even one by one. Such a layer counts as fetched in
+        // full — otherwise it would be refetched forever for nothing.
         skipped_ids: skipped.length ? skipped : undefined,
         ok: probe.count === features.length + skipped.length,
       };
@@ -187,7 +187,7 @@ export async function dump(gis, {
       stats.done += 1;
       stats.features += features.length;
       stats.bytes += bytes;
-      report(manifest[t.key].ok ? 'готово' : 'недобор', {
+      report(manifest[t.key].ok ? 'done' : 'partial', {
         count: features.length, expected, bytes, skipped: skipped.length,
       });
     } catch (e) {
@@ -197,7 +197,7 @@ export async function dump(gis, {
       };
       dirty = true;
       stats.failed += 1;
-      report('ошибка', { error: String(e.message || e).slice(0, 200) });
+      report('failed', { error: String(e.message || e).slice(0, 200) });
     }
 
     if (dirty && (stats.done + stats.failed) % 5 === 0) { writeManifest(rawDir, manifest); dirty = false; }
@@ -207,7 +207,7 @@ export async function dump(gis, {
   return { ...stats, total: targets.length };
 }
 
-/** Что изменилось на сервере — по отпечаткам, без скачивания. */
+/** What changed on the server — by fingerprints, without downloading. */
 export async function findChanges(gis, { rawDir = 'raw', jobs = 8, onProgress = null } = {}) {
   const manifest = readManifest(rawDir);
   const targets = await dumpTargets(gis);
@@ -227,8 +227,8 @@ export async function findChanges(gis, { rawDir = 'raw', jobs = 8, onProgress = 
       const fields = (meta.fields || []).map((f) => f.name);
       const now = await gis.probe(layerUrl, fields);
       const diff = ['count', 'max_oid', 'max_edit'].filter((f) => (old[f] ?? null) !== (now[f] ?? null));
-      if (!manifest[t.key].ok) changed.push({ key: t.key, why: 'не докачан в прошлый раз', oblast: t.oblast });
-      else if (Object.keys(old).length === 0) changed.push({ key: t.key, why: 'нет отпечатка', oblast: t.oblast });
+      if (!manifest[t.key].ok) changed.push({ key: t.key, why: 'incomplete last time', oblast: t.oblast });
+      else if (Object.keys(old).length === 0) changed.push({ key: t.key, why: 'no fingerprint', oblast: t.oblast });
       else if (diff.length) {
         changed.push({
           key: t.key, oblast: t.oblast,
@@ -236,7 +236,7 @@ export async function findChanges(gis, { rawDir = 'raw', jobs = 8, onProgress = 
         });
       }
     } catch (e) {
-      changed.push({ key: t.key, oblast: t.oblast, why: `не ответил: ${String(e.message).slice(0, 80)}` });
+      changed.push({ key: t.key, oblast: t.oblast, why: `no answer: ${String(e.message).slice(0, 80)}` });
     }
     onProgress?.({ i: ++i, total: existing.length });
   });

@@ -1,10 +1,10 @@
 /**
- * Проверка кода.
+ * Code checks.
  *
- * Правила подобраны по делу, а не по моде: ловим то, что реально ломалось —
- * необъявленные переменные, забытые await, пустые блоки. Стилевые придирки
- * вроде длины строки не включены намеренно, чтобы проверка не превращалась
- * в шум, который начинают отключать.
+ * The rules are picked for cause, not for fashion: they catch what actually
+ * broke here — undeclared variables, forgotten awaits, empty blocks. Style
+ * nitpicks such as line length are left out on purpose, so the check does not
+ * turn into noise that people start switching off.
  */
 
 import js from '@eslint/js';
@@ -15,7 +15,7 @@ export default [
 
   js.configs.recommended,
 
-  // Ядро, главный процесс, командная строка — среда Node
+  // Core, main process, command line — a Node environment
   {
     files: ['src/core/**/*.js', 'src/main/**/*.js', 'src/cli/**/*.js',
       'src/exporters/**/*.js', 'scripts/**/*.js', 'test/**/*.js'],
@@ -35,7 +35,7 @@ export default [
     },
   },
 
-  // Обёртки на CommonJS
+  // CommonJS wrappers
   {
     files: ['**/*.cjs'],
     languageOptions: {
@@ -46,12 +46,13 @@ export default [
     rules: { 'no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
   },
 
-  // Окно: браузерная среда, доступ к данным только через window.api
+  // The window: a browser environment, data access only through window.api.
+  // ES modules — the renderer loads app.js as a module and imports i18n.js.
   {
     files: ['src/renderer/**/*.js'],
     languageOptions: {
       ecmaVersion: 2023,
-      sourceType: 'script',
+      sourceType: 'module',
       globals: { ...globals.browser },
     },
     rules: {

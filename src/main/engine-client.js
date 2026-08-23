@@ -1,16 +1,16 @@
 /**
- * Сторона главного процесса: рабочие процессы базы и вызовы к ним.
+ * The main-process side: the database worker processes and calls into them.
  *
- * Процессов два, и это не роскошь. Один процесс обрабатывает сообщения по
- * очереди, поэтому тяжёлый запрос задерживал все остальные: замер показал
- * 3.8 секунды на обычный вызов, пока считался SQL из консоли.
+ * There are two processes, and that is not a luxury. One process handles
+ * messages in order, so a heavy query held up everything else: a measurement
+ * showed 3.8 seconds for an ordinary call while an SQL console query ran.
  *
- *   fast   просмотр: список, таблица, карточка, оценка выборки
- *   heavy  долгое: SQL-консоль, экспорт, синхронизация, пересборка
+ *   fast   browsing: the list, the table, one object, the estimate
+ *   heavy  the slow ones: SQL console, export, syncing, rebuild
  *
- * SQLite допускает несколько соединений на чтение, поэтому оба процесса
- * открывают одну и ту же базу. Пересборка идёт в heavy и после себя
- * переоткрывает базу в fast — файл к тому времени уже другой.
+ * SQLite allows several readers, so both processes open the same database.
+ * A rebuild runs in heavy and afterwards reopens the database in fast — by
+ * then the file is a different one.
  */
 
 import { createRequire } from 'node:module';
@@ -22,7 +22,7 @@ const { utilityProcess } = require('electron');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Вызовы, которые могут идти долго. Остальные считаются быстрыми. */
+/** Calls that may run for a long time. Everything else counts as fast. */
 const HEAVY = new Set(['query', 'runExport', 'pull', 'rebuild', 'checkUpdates', 'stats']);
 
 const lanes = new Map();
@@ -39,8 +39,8 @@ function spawn(name) {
   });
 
   lane.child.on('message', (msg) => {
-    if (msg?.fatal) { onLog(`движок «${name}» не запустился: ${msg.fatal}`); return; }
-    // События хода работы шлёт только тяжёлая дорожка — иначе они задвоятся
+    if (msg?.fatal) { onLog(`engine «${name}» did not start: ${msg.fatal}`); return; }
+    // Progress events are sent by the heavy lane only — otherwise they double
     if (msg?.event) { if (name === 'heavy' && msg.event !== 'ready') onEvent(msg.event, msg.payload); return; }
 
     const p = lane.pending.get(msg.id);
@@ -50,8 +50,8 @@ function spawn(name) {
   });
 
   lane.child.on('exit', (code) => {
-    onLog(`движок «${name}» завершился, код ${code}`);
-    for (const p of lane.pending.values()) p.reject(new Error('движок базы остановлен'));
+    onLog(`engine «${name}» exited, code ${code}`);
+    for (const p of lane.pending.values()) p.reject(new Error('the database engine stopped'));
     lane.pending.clear();
     lanes.delete(name);
   });
@@ -83,9 +83,9 @@ export function stopEngine() {
   lanes.clear();
 }
 
-/** Вызов метода движка. Дорожка выбирается по методу. */
+/** Call an engine method. The lane is chosen by the method. */
 export async function callEngine(method, args = {}) {
-  // Базу открывают обе дорожки: каждая работает своим соединением
+  // Both lanes open the database: each works through its own connection
   if (method === 'open') {
     dbFile = args.dbFile;
     const [r] = await Promise.all([post('fast', 'open', args), post('heavy', 'open', args)]);
@@ -94,7 +94,7 @@ export async function callEngine(method, args = {}) {
 
   const res = await post(HEAVY.has(method) ? 'heavy' : 'fast', method, args);
 
-  // После пересборки файл базы другой — быстрая дорожка должна переоткрыть его
+  // After a rebuild the database file is another one — fast must reopen it
   if ((method === 'rebuild' || method === 'pull') && dbFile) {
     await post('fast', 'open', { dbFile });
   }

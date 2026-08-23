@@ -1,14 +1,14 @@
 /**
- * Запросы к базе.
+ * Database queries.
  *
- * Три правила, за которыми стоят замеры, а не вкусы:
+ * Three rules, each backed by measurement rather than taste:
  *
- * 1. Дерево и справочники читаются из материализованных таблиц. Пересчёт по
- *    миллиону строк занимал 22 и 62 секунды соответственно.
- * 2. Оценка выборки по дереву берёт готовые суммы из forestry: сканирование
- *    объектов стоило 30 секунд на каждый клик.
- * 3. Большой список выбранных лесничеств уходит во временную таблицу: разбор
- *    запроса с сотнями подстановок дороже, чем его выполнение.
+ * 1. The tree and the lookups are read from materialised tables. Recomputing
+ *    them over a million rows took 22 and 62 seconds respectively.
+ * 2. The estimate of a selection made from the tree reads ready sums out of
+ *    forestry: scanning the objects cost 30 seconds per click.
+ * 3. A long list of picked forestries goes into a temp table: parsing a query
+ *    with hundreds of placeholders costs more than running it.
  */
 
 import { open } from '../core/db.js';
@@ -35,7 +35,7 @@ export const currentDb = () => dbPath;
 export const isOpen = () => Boolean(db);
 
 function need() {
-  if (!db) throw new Error('База не открыта');
+  if (!db) throw new Error('No database open');
   return db;
 }
 
@@ -48,7 +48,7 @@ function setSelection(keys) {
   })(keys);
 }
 
-/* ---------------------------------------------------------------- сводка */
+/* ---------------------------------------------------------------- summary */
 
 export function summary() {
   const d = need();
@@ -64,7 +64,7 @@ export function summary() {
   };
 }
 
-/* ---------------------------------------------------------------- дерево */
+/* ---------------------------------------------------------------- tree */
 
 export function tree() {
   const rows = need().prepare(`
@@ -93,7 +93,7 @@ export function tree() {
   return [...byOblast.values()].map((o) => ({ ...o, children: [...o.children.values()] }));
 }
 
-/** Плоский список лесничеств — для поиска вместо дерева с флажками. */
+/** Flat list of forestries — for search instead of a tree of checkboxes. */
 export function forestries() {
   return need().prepare(`
     SELECT layer_key key, oblast, uchrezhdenie, lesnichestvo name,
@@ -114,7 +114,7 @@ export function facets() {
   };
 }
 
-/* ---------------------------------------------------------------- фильтры */
+/* ---------------------------------------------------------------- filters */
 
 export function parseNumbers(text) {
   if (!text) return null;
@@ -132,17 +132,17 @@ export function parseNumbers(text) {
 }
 
 /**
- * Проверка произвольного запроса.
+ * Checking an arbitrary query.
  *
- * Соединение открыто только на чтение, но полагаться на одно это нельзя:
- * отклоняем всё, что не начинается с SELECT или WITH, и не даём выполнить
- * несколько инструкций разом.
+ * The connection is read-only, but that alone cannot be relied on: we reject
+ * anything that does not start with SELECT or WITH, and refuse to run several
+ * statements at once.
  */
 export function checkSql(text) {
   const sql = String(text || '').trim().replace(/;\s*$/, '');
-  if (!sql) throw new Error('Пустой запрос');
-  if (!/^(select|with)\b/i.test(sql)) throw new Error('Разрешены только SELECT и WITH');
-  if (/;/.test(sql)) throw new Error('Только один запрос за раз');
+  if (!sql) throw new Error('Empty query');
+  if (!/^(select|with)\b/i.test(sql)) throw new Error('Only SELECT and WITH are allowed');
+  if (/;/.test(sql)) throw new Error('One query at a time');
   return sql;
 }
 
@@ -151,9 +151,9 @@ function buildWhere(f = {}) {
   const params = [];
   let join = '';
 
-  // Запрос пользователя сужает выборку наравне с фильтрами: он должен
-  // возвращать колонку id объектов. Так один и тот же путь ведёт и к
-  // просмотру, и к экспорту.
+  // The user query narrows the selection just like the filters do: it has to
+  // return a column of object ids. That way one and the same path leads both
+  // to browsing and to export.
   if (f.sql) where.push(`feature.id IN (SELECT id FROM (${checkSql(f.sql)}))`);
 
   if (f.keys?.length) {
@@ -186,11 +186,11 @@ function buildWhere(f = {}) {
 }
 
 /**
- * Фильтры, требующие заглянуть в объекты, а не в сводку по лесничествам.
+ * Filters that need a look at the objects rather than at the forestry summary.
  *
- * Собственный запрос сюда обязан входить: без него оценка шла быстрым путём и
- * показывала всю базу — 1 629 975 выделов вместо 1 351, то есть 928 файлов
- * вместо 86.
+ * A custom query must be listed here: without it the estimate took the fast
+ * path and showed the whole database — 1 629 975 stands instead of 1 351,
+ * that is 928 files instead of 86.
  */
 function needsScan(f = {}) {
   return Boolean(
@@ -201,23 +201,23 @@ function needsScan(f = {}) {
   );
 }
 
-/* ---------------------------------------------------------------- просмотр */
+/* ---------------------------------------------------------------- browsing */
 
 const BROWSE_COLUMNS = [
-  { key: 'oblast', label: 'Область' },
-  { key: 'lesnichestvo', label: 'Лесничество' },
-  { key: 'kvartal', label: 'Квартал', num: true },
-  { key: 'vydel', label: 'Выдел', num: true },
-  { key: 'ploshad', label: 'Площадь, га', num: true },
-  { key: 'poroda', label: 'Порода' },
-  { key: 'bonitet', label: 'Бонитет' },
-  { key: 'tip_lesa', label: 'Тип леса' },
-  { key: 'kat_zem', label: 'Категория земель' },
+  { key: 'oblast' },
+  { key: 'lesnichestvo' },
+  { key: 'kvartal', num: true },
+  { key: 'vydel', num: true },
+  { key: 'ploshad', num: true },
+  { key: 'poroda' },
+  { key: 'bonitet' },
+  { key: 'tip_lesa' },
+  { key: 'kat_zem' },
 ];
 
 export const browseColumns = () => BROWSE_COLUMNS;
 
-/** Страница таблицы объектов под текущим фильтром. */
+/** One page of the object table under the current filter. */
 export function browse(filters, { offset = 0, limit = 200, sort = null, desc = false } = {}) {
   const d = need();
   const { sql, params, join } = buildWhere(filters);
@@ -234,11 +234,11 @@ export function browse(filters, { offset = 0, limit = 200, sort = null, desc = f
   return { total, rows, offset, limit };
 }
 
-/** Один объект целиком: канонические поля и сырые атрибуты как есть. */
+/** One object in full: canonical fields and the raw attributes as they are. */
 export function feature(id) {
   const d = need();
   const row = d.prepare('SELECT * FROM feature WHERE id = ?').get(Number(id));
-  if (!row) throw new Error('Объект не найден');
+  if (!row) throw new Error('Object not found');
   const data = d.prepare('SELECT props, geom FROM feature_data WHERE feature_id = ?').get(Number(id));
   return {
     row,
@@ -249,18 +249,18 @@ export function feature(id) {
 }
 
 /**
- * Произвольный запрос — только чтение.
+ * An arbitrary query — read only.
  *
- * Соединение открыто в режиме чтения, но полагаться на это одно нельзя:
- * отклоняем всё, что не начинается с SELECT или WITH, и запрещаем несколько
- * инструкций в одной строке.
+ * The connection is opened read-only, but that alone cannot be relied on: we
+ * reject anything that does not start with SELECT or WITH, and forbid several
+ * statements on one line.
  */
 /**
- * Выполнить запрос.
+ * Run a query.
  *
- * Если он вернул колонку id — это выборка объектов, её можно смотреть и
- * выгружать. Если нет — это отчёт: показываем как есть, но выгрузить нечего,
- * и об этом надо сказать прямо, а не оставлять человека гадать.
+ * When it returns an id column it is a selection of objects, which can be
+ * browsed and exported. When it does not, it is a report: shown as it is, but
+ * with nothing to export — and that has to be said plainly, not left to guess.
  */
 export function query(sql, { limit = 500 } = {}) {
   const d = need();
@@ -268,7 +268,7 @@ export function query(sql, { limit = 500 } = {}) {
 
   const t0 = Date.now();
   const stmt = d.prepare(text);
-  if (!stmt.reader) throw new Error('Запрос ничего не возвращает');
+  if (!stmt.reader) throw new Error('The query returns nothing');
   const rows = stmt.all();
   const truncated = rows.length > limit;
   if (truncated) rows.length = limit;
@@ -284,11 +284,11 @@ export function query(sql, { limit = 500 } = {}) {
   return { columns, rows, ms: Date.now() - t0, truncated, isSelection, total };
 }
 
-/** Список таблиц с числом строк — чтобы было с чего начать запрос. */
+/** List of tables with row counts — something to start a query from. */
 /**
- * Текущие фильтры в виде SQL — чтобы было с чего начать свой запрос.
- * Значения подставляются прямо в текст: это текст для человека, а не для
- * выполнения (выполняется он всё равно через checkSql и параметры).
+ * The current filters as SQL — something to start your own query from.
+ * Values are pasted straight into the text: this is text for a human, not for
+ * execution (it still runs through checkSql and parameters).
  */
 export function filtersAsSql(f = {}) {
   const q = (v) => (typeof v === 'number' ? v : `'${String(v).replace(/'/g, "''")}'`);
@@ -297,7 +297,7 @@ export function filtersAsSql(f = {}) {
   if (f.keys?.length) {
     where.push(f.keys.length <= 5
       ? `layer_key IN (${f.keys.map(q).join(', ')})`
-      : `layer_key IN (${f.keys.slice(0, 3).map(q).join(', ')}, … ещё ${f.keys.length - 3})`);
+      : `layer_key IN (${f.keys.slice(0, 3).map(q).join(', ')}, … ${f.keys.length - 3} more)`);
   }
   const kv = parseNumbers(f.kvartal);
   if (kv) where.push(`kvartal IN (${kv.join(', ')})`);
@@ -322,7 +322,7 @@ export function tables() {
   }));
 }
 
-/* ---------------------------------------------------------------- выборка */
+/* ---------------------------------------------------------------- selection */
 
 export function preview(filters, { budget = VERTEX_BUDGET, labels = true, split = 'lesnichestvo', kvartaly = true } = {}) {
   const d = need();
@@ -370,7 +370,7 @@ export function preview(filters, { budget = VERTEX_BUDGET, labels = true, split 
   return { vydels, vertices, groups: groups.length, estimatedFiles: vydels === 0 ? 0 : files };
 }
 
-/* ---------------------------------------------------------------- источник для экспорта */
+/* ---------------------------------------------------------------- export source */
 
 const rowToFeature = (r) => ({
   properties: JSON.parse(r.props),
@@ -380,8 +380,8 @@ const rowToFeature = (r) => ({
 });
 
 /**
- * Выборка в виде, пригодном для любого экспортёра: список групп и чтение
- * объектов по группе. Экспортёр не знает ни про SQL, ни про схему.
+ * The selection in a shape any exporter can use: a list of groups and a read
+ * of objects by group. An exporter knows neither the SQL nor the schema.
  */
 export function selection(filters) {
   const d = need();
@@ -427,7 +427,7 @@ export function selection(filters) {
   };
 }
 
-/* ---------------------------------------------------------------- служебное */
+/* ---------------------------------------------------------------- service */
 
 export function schemas() {
   const rows = need().prepare('SELECT key, oblast, kind, layer_name, fields, roles, loaded_count FROM layer').all();

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { resolveRoles, classifyLayer, forestryKey, asInt } from '../src/core/fields.js';
 
-/* Реальные наборы полей из системы — по одному на каждую встреченную схему. */
+/* Real field sets from the system — one per schema encountered. */
 const ALMATY = ['OBJECTID', 'Лесничество', 'КатегорияЗащитностиЛесныхЗемель',
   'НумерацияКварталов', 'НумерацияВыделов', 'Площадь', 'КатегорияЛесныхЗемель',
   'Бонитет', 'ТипЛеса', 'Порода', 'PorodaPP', 'company'];
@@ -11,54 +11,54 @@ const PAVLODAR = ['OBJECTID', 'Лесничеств', 'КатЗащ', 'Nквар
   'КатЗем', 'Бонитет', 'Тип_леса', 'Порода', 'ПородаПП'];
 const VARIANT_NKV = ['OBJECTID', 'Лесничеств', 'NКварт', 'NВыд'];
 const VARIANT_UNDERSCORE = ['OBJECTID', 'Лесничество', 'Нумерация_кварталов', 'Нумерация_выделов'];
-/* Костанайская область: имена полей усечены. */
+/* Kostanay region: the field names are truncated. */
 const TRUNCATED = ['OBJECTID', 'Лесни', 'Nквар', 'company'];
 
-test('роли распознаются во всех вариантах написания', () => {
+test('roles are recognised in every spelling', () => {
   for (const [name, fields, kv, vd] of [
-    ['Алматинская', ALMATY, 'НумерацияКварталов', 'НумерацияВыделов'],
-    ['Павлодарская', PAVLODAR, 'Nкварт', 'Nвыд'],
-    ['вариант NКварт', VARIANT_NKV, 'NКварт', 'NВыд'],
-    ['вариант с подчёркиванием', VARIANT_UNDERSCORE, 'Нумерация_кварталов', 'Нумерация_выделов'],
+    ['Almaty', ALMATY, 'НумерацияКварталов', 'НумерацияВыделов'],
+    ['Pavlodar', PAVLODAR, 'Nкварт', 'Nвыд'],
+    ['NКварт variant', VARIANT_NKV, 'NКварт', 'NВыд'],
+    ['underscore variant', VARIANT_UNDERSCORE, 'Нумерация_кварталов', 'Нумерация_выделов'],
   ]) {
     const r = resolveRoles(fields);
-    assert.equal(r.kv, kv, `${name}: номер квартала`);
-    assert.equal(r.vd, vd, `${name}: номер выдела`);
-    assert.ok(r.les, `${name}: лесничество`);
+    assert.equal(r.kv, kv, `${name}: block number`);
+    assert.equal(r.vd, vd, `${name}: stand number`);
+    assert.ok(r.les, `${name}: forestry`);
   }
 });
 
-test('усечённые имена полей распознаются', () => {
-  // Костанайская: «Лесни» и «Nквар» вместо полных слов. Требование полных
-  // окончаний молча отключало связывание кварталов для всей области.
+test('truncated field names are recognised', () => {
+  // Kostanay: «Лесни» and «Nквар» instead of whole words. Demanding full
+  // endings silently switched off block linking for the entire region.
   const r = resolveRoles(TRUNCATED);
   assert.equal(r.les, 'Лесни');
   assert.equal(r.kv, 'Nквар');
 });
 
-test('название лесничества чистится от мусора в значении', () => {
-  // В данных встречается ",Кондратьевское" — с ведущей запятой
+test('a forestry name is cleaned of rubbish in the value', () => {
+  // The data contains ",Кондратьевское" — with a leading comma
   assert.equal(forestryKey(',Кондратьевское'), forestryKey('Кондратьевское'));
 });
 
-test('«категория земель» не перехватывается «защитностью»', () => {
-  // В «КатегорияЗащитностиЛесныхЗемель» есть и «категор», и «Земель»:
-  // без исключающего шаблона настоящая КатегорияЛесныхЗемель терялась.
+test('«land category» is not stolen by «protection category»', () => {
+  // «КатегорияЗащитностиЛесныхЗемель» holds both «категор» and «Земель»:
+  // without an excluding pattern the real КатегорияЛесныхЗемель was lost.
   const r = resolveRoles(ALMATY);
   assert.equal(r.kat_zem, 'КатегорияЛесныхЗемель');
   assert.equal(r.kat_zasch, 'КатегорияЗащитностиЛесныхЗемель');
 });
 
-test('номер квартала и номер выдела не путаются между собой', () => {
+test('the block number and the stand number are not confused', () => {
   const r = resolveRoles(PAVLODAR);
   assert.notEqual(r.kv, r.vd);
   assert.equal(r.kv, 'Nкварт');
   assert.equal(r.vd, 'Nвыд');
 });
 
-test('тип слоя определяется по полям, а не по названию', () => {
+test('the layer type is decided by fields, not by name', () => {
   const roles = resolveRoles(PAVLODAR);
-  // у СКО слои выделов называются «ВыдПород», «ВыдПород2_12» — по имени не опознать
+  // in North Kazakhstan the stand layers are called «ВыдПород», «ВыдПород2_12»
   assert.equal(classifyLayer({ layerName: 'ВыдПород2_12', geometryType: 'esriGeometryPolygon' }, roles), 'vydel');
   assert.equal(classifyLayer({ layerName: 'Границы выделов', geometryType: 'esriGeometryPolygon' }, roles), 'vydel');
   assert.equal(
@@ -68,7 +68,7 @@ test('тип слоя определяется по полям, а не по н�
   assert.equal(classifyLayer({ layerName: 'Посадка деревьев', geometryType: 'esriGeometryPoint' }, roles), 'misc');
 });
 
-test('ключ лесничества сводит разные написания к одному', () => {
+test('the forestry key folds different spellings into one', () => {
   const same = [
     ['Каскеленское лесничество', 'Каскеленское'],
     ['Мало-Алматинское лесничество', 'Мало-Алматинское'],
@@ -78,21 +78,21 @@ test('ключ лесничества сводит разные написани
     ['Каратальское лесничество', 'каратальское'],
   ];
   for (const [a, b] of same) {
-    assert.equal(forestryKey(a), forestryKey(b), `${a} против ${b}`);
+    assert.equal(forestryKey(a), forestryKey(b), `${a} against ${b}`);
   }
 });
 
-test('ключ лесничества различает разные лесничества', () => {
+test('the forestry key still tells different forestries apart', () => {
   assert.notEqual(forestryKey('Каскеленское'), forestryKey('Каратальское'));
   assert.notEqual(forestryKey('Аксуское'), forestryKey('Аксайское'));
 });
 
-test('ключ устойчив к регистру и букве ё', () => {
+test('the key survives case and the letter ё', () => {
   assert.equal(forestryKey('КОКЖИДИНСКОЕ'), forestryKey('Кокжидинское'));
   assert.equal(forestryKey('Тёплое'), forestryKey('Теплое'));
 });
 
-test('числа разбираются с отбрасыванием дробной части', () => {
+test('numbers are parsed with the fractional part dropped', () => {
   assert.equal(asInt(29), 29);
   assert.equal(asInt('29'), 29);
   assert.equal(asInt(29.0), 29);

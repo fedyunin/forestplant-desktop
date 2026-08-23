@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Сборка базы из сырого архива. `npm run load -- --reset` */
+/** Build the database from the raw archive. `npm run load -- --reset` */
 
 import { loadFromRaw, stats } from '../core/db.js';
 import { buildLinks } from '../core/link.js';
@@ -15,7 +15,7 @@ const raw = opt('raw', 'raw');
 const db = opt('db', 'forest.sqlite');
 const reset = flag('reset');
 
-console.log(`Загрузка ${raw} -> ${db}${reset ? ' (с нуля)' : ''}`);
+console.log(`Loading ${raw} -> ${db}${reset ? ' (from scratch)' : ''}`);
 const t0 = Date.now();
 let lastLog = 0;
 
@@ -25,30 +25,30 @@ const s = loadFromRaw(db, raw, {
     const now = Date.now();
     if (rows > 20000 || now - lastLog > 2000 || i === total) {
       lastLog = now;
-      console.log(`  [${i}/${total}] ${key} — ${action}, ${rows} об.`);
+      console.log(`  [${i}/${total}] ${key} — ${action}, ${rows} obj.`);
     }
   },
 });
 
 const mins = ((Date.now() - t0) / 60000).toFixed(1);
-console.log(`\nЗагружено слоёв ${s.loaded}, обновлено ${s.updated}, пропущено ${s.skipped}`);
-console.log(`Объектов: ${s.features.toLocaleString('ru')} за ${mins} мин`);
-console.log('По типам:', s.byKind);
+console.log(`\nLayers loaded ${s.loaded}, updated ${s.updated}, skipped ${s.skipped}`);
+console.log(`Objects: ${s.features.toLocaleString('en')} in ${mins} min`);
+console.log('By kind:', s.byKind);
 
-console.log('\nСвязываю кварталы с лесничествами...');
+console.log('\nLinking blocks to forestries...');
 const links = buildLinks(db);
-console.log(`  по названию ${links.byName}, по географии ${links.byGeo}`);
-console.log(`  лесничеств с кварталами: ${links.forestriesWithKvartaly} из ${links.forestriesTotal}`);
+console.log(`  by name ${links.byName}, by geography ${links.byGeo}`);
+console.log(`  forestries with blocks: ${links.forestriesWithKvartaly} of ${links.forestriesTotal}`);
 
 const st = stats(db);
-console.log('\nВыделы по областям:');
+console.log('\nStands by region:');
 for (const r of st.byOblast) {
-  console.log(`  ${String(r.oblast).padEnd(34)} ${String(r.features).padStart(8)} выд. в ${String(r.layers).padStart(3)} слоях`);
+  console.log(`  ${String(r.oblast).padEnd(34)} ${String(r.features).padStart(8)} stands in ${String(r.layers).padStart(3)} layers`);
 }
-console.log(`\nВсего объектов в базе: ${st.features.toLocaleString('ru')}`);
-console.log(`Выделов без номера: ${st.noVydelNumber}`);
-console.log(`Объектов без геометрии: ${st.noGeom}`);
-console.log(`Расхождений «сервер/база»: ${st.mismatched.length}`);
+console.log(`\nObjects in the database: ${st.features.toLocaleString('en')}`);
+console.log(`Stands without a number: ${st.noVydelNumber}`);
+console.log(`Objects without geometry: ${st.noGeom}`);
+console.log(`Mismatches «server/database»: ${st.mismatched.length}`);
 for (const m of st.mismatched) {
-  console.log(`   ${m.key}: сервер ${m.server_count}, в базе ${m.loaded_count}`);
+  console.log(`   ${m.key}: server ${m.server_count}, database ${m.loaded_count}`);
 }

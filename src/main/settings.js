@@ -1,8 +1,8 @@
 /**
- * Настройки приложения.
+ * Application settings.
  *
- * Данные лежат одним каталогом: внутри база и сырой архив. Одна настройка
- * вместо двух путей — так меньше способов настроить наполовину.
+ * The data lives in one folder holding both the database and the raw archive.
+ * One setting instead of two paths — fewer ways to configure it halfway.
  *
  *   db/
  *     forest.sqlite
@@ -26,11 +26,13 @@ const file = () => path.join(app.getPath('userData'), 'settings.json');
 const DEFAULTS = {
   dataDir: null,
   exportDir: null,
+  // 'system' resolves against the OS locale; 'ru' or 'en' pin it
+  language: 'system',
 };
 
 let cache = null;
 
-/** Похож ли каталог на каталог данных. */
+/** Does this folder look like a data folder. */
 export function looksLikeDataDir(dir) {
   if (!dir || !fs.existsSync(dir)) return false;
   return fs.existsSync(path.join(dir, DB_NAME))
@@ -42,12 +44,12 @@ export function load() {
   let saved = {};
   try {
     saved = JSON.parse(fs.readFileSync(file(), 'utf8'));
-  } catch { /* первого запуска ещё не было */ }
+  } catch { /* there has been no first run yet */ }
 
   cache = { ...DEFAULTS, ...saved };
   if (process.env.FP_DATA) cache.dataDir = process.env.FP_DATA;
 
-  // При запуске из каталога проекта подхватываем то, что рядом
+  // When started from the project folder, pick up whatever sits next to it
   if (!cache.dataDir) {
     for (const c of [path.resolve(process.cwd(), 'db'), process.cwd()]) {
       if (looksLikeDataDir(c)) { cache.dataDir = c; break; }
@@ -74,7 +76,7 @@ export const rawPath = () => {
   return d ? path.join(d, RAW_NAME) : null;
 };
 
-/** Состояние для интерфейса: пути, наличие, размеры. */
+/** State for the interface: paths, presence, sizes. */
 export function status() {
   const s = load();
   const db = dbPath();
@@ -89,7 +91,7 @@ export function status() {
     const files = fs.readdirSync(dir);
     rawLayers = files.length;
     for (const f of files) rawBytes += size(path.join(dir, f));
-  } catch { /* архива может не быть */ }
+  } catch { /* the archive may not exist */ }
 
   return {
     dataDir: s.dataDir,
@@ -102,10 +104,27 @@ export function status() {
     rawSize: rawBytes,
     rawLayers,
     settingsFile: file(),
+    language: s.language,
+    effectiveLanguage: language(),
+    systemLocale: app.getLocale(),
   };
 }
 
-/** Куда предложить положить данные, если каталог ещё не выбран. */
+/**
+ * Effective interface language.
+ *
+ * 'system' asks the OS. Electron reports locales like 'ru-RU' or 'en-GB',
+ * so only the primary subtag matters; anything we do not translate falls
+ * back to English.
+ */
+export function language() {
+  const chosen = load().language;
+  if (chosen === 'ru' || chosen === 'en') return chosen;
+  const sys = String(app.getLocale() || '').toLowerCase();
+  return sys.startsWith('ru') ? 'ru' : 'en';
+}
+
+/** Where to suggest putting the data when no folder has been chosen yet. */
 export function defaultDataDir() {
-  return path.join(app.getPath('documents'), 'ЛесФонд');
+  return path.join(app.getPath('documents'), 'ForestFund');
 }

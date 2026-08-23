@@ -1,4 +1,4 @@
-name: Проверки
+name: Checks
 
 on:
   push:
@@ -6,15 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Новый push отменяет предыдущий прогон по той же ветке: гонять уже
-# неактуальную проверку смысла нет.
+# A new push cancels the previous run on the same branch: there is no point in
+# finishing a check that is already out of date.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check:
-    name: Тесты и стиль
+    name: Tests and style
     runs-on: ubuntu-latest
 
     steps:
@@ -25,23 +25,23 @@ jobs:
           node-version: 22
           cache: npm
 
-      # ci вместо install: ставит ровно то, что в package-lock
+      # ci rather than install: it installs exactly what package-lock says
       - run: npm ci
 
-      - name: Стиль
+      - name: Style
         run: npm run lint
 
-      - name: Тесты ядра
+      - name: Core tests
         run: npm test
 
-      # Секреты в истории git остаются навсегда, поэтому проверяем на каждый
-      # push, а не только глазами при обзоре.
-      - name: Нет ли учётных данных в коде
+      # Secrets stay in the git history forever, so we check on every push
+      # rather than by eye during review.
+      - name: No credentials in the code
         run: |
           if grep -rnE "password\s*[:=]\s*['\"][^'\"]{6,}" \
                --include='*.js' --include='*.cjs' --include='*.json' \
                --exclude-dir=node_modules . ; then
-            echo "::error::В коде похоже на зашитый пароль"
+            echo "::error::This looks like a hardcoded password"
             exit 1
           fi
-          echo "Зашитых паролей не найдено"
+          echo "No hardcoded passwords found"

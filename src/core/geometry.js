@@ -1,11 +1,11 @@
 /**
- * Геометрия: bbox, счёт вершин, точка для подписи, склейка полигонов.
+ * Geometry: bbox, vertex counting, label points, merging polygons.
  *
- * Внешних зависимостей нет намеренно — всё это чистая математика на
- * координатах GeoJSON, и тянуть ради неё geos/turf смысла нет.
+ * Deliberately dependency-free — this is plain arithmetic over GeoJSON
+ * coordinates, and pulling in geos/turf for it would buy nothing.
  */
 
-/** Все кольца геометрии одним списком (внешние и дырки вперемешку). */
+/** Every ring of a geometry as one list (outer rings and holes mixed). */
 export function ringsOf(geom) {
   if (!geom) return [];
   const { type, coordinates: c } = geom;
@@ -14,7 +14,7 @@ export function ringsOf(geom) {
   return [];
 }
 
-/** Части полигона: [[внешнее, дырка, дырка], [внешнее], ...] */
+/** Parts of a polygon: [[outer, hole, hole], [outer], ...] */
 export function partsOf(geom) {
   if (!geom) return [];
   const { type, coordinates: c } = geom;
@@ -42,11 +42,11 @@ export function bbox(geom) {
 }
 
 /**
- * Число точек координат в геометрии.
+ * Number of coordinate points in a geometry.
  *
- * Google Earth ограничивает именно вершины, а не объекты:
+ * Google Earth limits vertices, not objects:
  * «too many vertices (287,793) ... cannot exceed 250,000».
- * Каждая подпись — точка, то есть тоже одна вершина.
+ * Every label is a point, so it counts as one vertex too.
  */
 export function countVertices(geom) {
   if (!geom) return 0;
@@ -60,7 +60,7 @@ export function countVertices(geom) {
   return n;
 }
 
-/** Площадь кольца со знаком (формула шнурков). */
+/** Signed area of a ring (the shoelace formula). */
 export function signedArea(ring) {
   let a = 0;
   for (let i = 0; i < ring.length - 1; i++) {
@@ -69,7 +69,7 @@ export function signedArea(ring) {
   return a / 2;
 }
 
-/** Центроид кольца и его площадь. Для вырожденных колец — среднее вершин. */
+/** Centroid of a ring and its area. For degenerate rings — the mean vertex. */
 export function ringCentroid(ring) {
   let a = 0, cx = 0, cy = 0;
   for (let i = 0; i < ring.length - 1; i++) {
@@ -101,7 +101,7 @@ export function ringContains(ring, x, y) {
   return inside;
 }
 
-/** Точка внутри части полигона: внутри внешнего кольца и вне дырок. */
+/** A point inside a polygon part: inside the outer ring and outside the holes. */
 export function partContains(rings, x, y) {
   if (!ringContains(rings[0], x, y)) return false;
   for (let i = 1; i < rings.length; i++) {
@@ -114,7 +114,7 @@ export function geomContains(geom, x, y) {
   return partsOf(geom).some((rings) => rings.length && partContains(rings, x, y));
 }
 
-/** Середина самого широкого отрезка внутри полигона на высоте y. */
+/** Midpoint of the widest segment inside a polygon at height y. */
 function scanlinePoint(rings, y) {
   const xs = [];
   for (const ring of rings) {
@@ -136,11 +136,11 @@ function scanlinePoint(rings, y) {
 }
 
 /**
- * Точка, куда вешать подпись — обязательно внутри контура.
+ * The point to hang a label on — guaranteed to be inside the outline.
  *
- * Не центроид: у вогнутых и кольцевых фигур он уходит наружу. Берём центроид
- * наибольшей части, а если он снаружи — середину самого широкого
- * горизонтального отрезка внутри контура на той же высоте.
+ * Not the centroid: on concave and ring-shaped figures it lands outside. We
+ * take the centroid of the largest part, and when that falls outside, the
+ * midpoint of the widest horizontal segment inside the outline at that height.
  */
 export function labelPoint(geom) {
   if (!geom) return null;
@@ -162,17 +162,17 @@ export function labelPoint(geom) {
 }
 
 /**
- * Внешняя граница объединения полигонов: рёбра, встретившиеся ровно один раз.
+ * Outer boundary of a union of polygons: the edges seen exactly once.
  *
- * Работает на топологически чистых данных, где соседние полигоны делят
- * вершины — у выделов и кварталов это так, они нарезаны из одного покрытия.
+ * Works on topologically clean data where neighbouring polygons share their
+ * vertices — stands and blocks are like that, both cut from one coverage.
  *
- * Проверено на реальных данных: склейка выделов каждого квартала совпала с
- * настоящим полигоном квартала в 56 случаях из 59; остальные три оказались
- * кварталами из двух отдельных кусков, а не ошибкой склейки.
+ * Checked against real data: merging the stands of each block matched the
+ * actual block polygon in 56 cases out of 59; the other three turned out to
+ * be blocks made of two separate pieces, not a merge error.
  *
- * minFrac отсекает микроскопические кольца-слипы, возникающие там, где соседи
- * не делят вершины точь-в-точь (у Каскеленского таких было 43 из 46).
+ * minFrac drops the microscopic sliver rings that appear where neighbours do
+ * not share vertices exactly (at Kaskelenskoe there were 43 of them out of 46).
  */
 export function dissolve(geoms, { precision = 7, minFrac = 2e-4 } = {}) {
   const k = 10 ** precision;
@@ -192,7 +192,7 @@ export function dissolve(geoms, { precision = 7, minFrac = 2e-4 } = {}) {
     }
   }
 
-  // только рёбра, принадлежащие одному полигону — внутренние отбрасываем
+  // only edges belonging to a single polygon — the interior ones are dropped
   const adj = new Map();
   for (const [key, n] of counts) {
     if (n !== 1) continue;
@@ -239,10 +239,10 @@ export function dissolve(geoms, { precision = 7, minFrac = 2e-4 } = {}) {
 }
 
 /**
- * Кольца -> MultiPolygon. Кольцо внутри нечётного числа других — дырка.
+ * Rings -> MultiPolygon. A ring inside an odd number of others is a hole.
  *
- * Без разбора вложенности несколько отдельных кусков лесничества склеились бы
- * в один полигон с ложными дырками — у Каскеленского такие кварталы есть.
+ * Without resolving the nesting, several separate pieces of a forestry would
+ * merge into one polygon with false holes — Kaskelenskoe has such blocks.
  */
 export function ringsToMultiPolygon(rings) {
   if (!rings || rings.length === 0) return null;
@@ -264,7 +264,7 @@ export function ringsToMultiPolygon(rings) {
   return parts.length ? { type: 'MultiPolygon', coordinates: parts } : null;
 }
 
-/** Контур лесничества: предпочтительно по кварталам, иначе по выделам. */
+/** Outline of a forestry: from the blocks when possible, otherwise the stands. */
 export function outlineOf(vydels, kvartaly) {
   const src = (kvartaly && kvartaly.length ? kvartaly : vydels)
     .map((f) => f.geometry)

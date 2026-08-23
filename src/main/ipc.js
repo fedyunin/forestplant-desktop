@@ -1,9 +1,10 @@
 /**
- * IPC главного процесса.
+ * IPC of the main process.
  *
- * Главный процесс держит окно и ничего тяжёлого не делает: база, разбор
- * архива и сборка файлов живут в отдельном рабочем процессе. Здесь только
- * проверка входа, пересылка вызова и единый ответ {ok, data} / {ok:false, error}.
+ * The main process holds the window and does nothing heavy: the database,
+ * parsing the archive and building files live in a separate worker process.
+ * Here there is only input checking, forwarding, and one answer shape:
+ * {ok, data} / {ok: false, error}.
  */
 
 import fs from 'node:fs';
@@ -18,16 +19,16 @@ const num = (v) => (v !== '' && v !== null && Number.isFinite(Number(v)) ? Numbe
 
 const needData = () => {
   const p = settings.rawPath();
-  if (!p) throw new Error('Не выбран каталог данных — задайте его в настройках');
+  if (!p) throw new Error('No data folder chosen — set it in the settings');
   return p;
 };
 const needDb = () => {
   const p = settings.dbPath();
-  if (!p) throw new Error('Не выбран каталог данных — задайте его в настройках');
+  if (!p) throw new Error('No data folder chosen — set it in the settings');
   return p;
 };
 
-/** Фильтры приходят из окна: принимаем только известные поля известных типов. */
+/** Filters come from the window: only known fields of known types are taken. */
 function sanitizeFilters(f = {}) {
   return {
     keys: arr(f.keys),
@@ -46,7 +47,7 @@ function sanitizeFilters(f = {}) {
 }
 
 export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
-  // Окно может быть уже закрыто, когда движок досылает последние события
+  // The window may already be closed when the engine sends its last events
   const send = (channel, payload) => {
     const w = getWindow();
     if (w && !w.isDestroyed()) w.webContents.send(channel, payload);
@@ -65,11 +66,11 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
     }
   };
 
-  /* ---------------------------------------------------- база */
+  /* ---------------------------------------------------- database */
 
   ipcMain.handle('db:open', ok(() => {
     const p = needDb();
-    if (!fs.existsSync(p)) throw new Error(`База не найдена: ${p}`);
+    if (!fs.existsSync(p)) throw new Error(`Database not found: ${p}`);
     return callEngine('open', { dbFile: p });
   }));
 
@@ -102,7 +103,7 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
     dbFile: needDb(), rawDir: needData(), reset: Boolean(reset),
   })));
 
-  /* ---------------------------------------------------- экспорт */
+  /* ---------------------------------------------------- export */
 
   ipcMain.handle('export:list', plain('exporters'));
 
@@ -112,7 +113,7 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
 
   ipcMain.handle('export:pickDir', ok(async () => {
     const r = await dialog.showOpenDialog(getWindow(), {
-      title: 'Куда сохранить',
+      title: 'Where to save',
       defaultPath: settings.load().exportDir || undefined,
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -123,16 +124,17 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
 
   ipcMain.handle('export:run', ok((id, filters, options, outDir) => {
     const dir = str(outDir) || settings.load().exportDir;
-    if (!dir) throw new Error('Не выбран каталог для сохранения');
+    if (!dir) throw new Error('No folder chosen to save into');
     return callEngine('runExport', {
       id: str(id) || 'kml',
       filters: sanitizeFilters(filters),
       options: options || {},
       outDir: dir,
+      lang: settings.language(),
     });
   }));
 
-  /* ---------------------------------------------------- настройки */
+  /* ---------------------------------------------------- settings */
 
   ipcMain.handle('settings:status', ok(() => ({
     ...settings.status(),
@@ -141,7 +143,7 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
 
   ipcMain.handle('settings:pickDataDir', ok(async () => {
     const r = await dialog.showOpenDialog(getWindow(), {
-      title: 'Каталог данных (внутри forest.sqlite и raw)',
+      title: 'Data folder (holds forest.sqlite and raw)',
       defaultPath: settings.load().dataDir || settings.defaultDataDir(),
       properties: ['openDirectory', 'createDirectory'],
     });
@@ -160,16 +162,22 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
     return true;
   }));
 
+  ipcMain.handle('settings:setLanguage', ok((lang) => {
+    const v = ['system', 'ru', 'en'].includes(str(lang)) ? str(lang) : 'system';
+    settings.save({ language: v });
+    return { language: v, effectiveLanguage: settings.language() };
+  }));
+
   ipcMain.handle('creds:save', ok((u, p) => creds.save(str(u), str(p))));
   ipcMain.handle('creds:clear', ok(() => creds.clear()));
 
-  /* ---------------------------------------------------- синхронизация */
+  /* ---------------------------------------------------- syncing */
 
-  // Пароль расшифровывается в главном процессе (там системная связка ключей)
-  // и передаётся движку на время вызова.
+  // The password is decrypted in the main process (the system keychain lives
+  // there) and handed to the engine for the duration of the call.
   const withCreds = () => {
     const c = creds.load();
-    if (!c) throw new Error('Не заданы учётные данные');
+    if (!c) throw new Error('No credentials set');
     return { username: c.username, password: c.password };
   };
 
@@ -181,7 +189,7 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
 
   ipcMain.handle('sync:pull', ok((keys) => {
     const list = arr(keys);
-    if (!list?.length) throw new Error('Нечего качать');
+    if (!list?.length) throw new Error('Nothing to fetch');
     return callEngine('pull', {
       rawDir: needData(), dbFile: needDb(), creds: withCreds(), keys: list,
     });

@@ -1,15 +1,15 @@
-# Зависимости
+# Dependencies
 node_modules/
 
-# Данные: база и сырой архив. Гигабайты, восстанавливаются синхронизацией —
-# в репозитории им не место.
+# Data: the database and the raw archive. Gigabytes, restored by syncing —
+# no place for them in the repository.
 db/
 raw/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
 
-# Сборки и выгрузки
+# Builds and exports
 dist/
 out/
 *.dmg
@@ -19,13 +19,13 @@ kml/
 *.kml
 *.geojson
 
-# Учётные данные и локальные настройки — не должны попадать в историю
+# Credentials and local settings — must never enter the history
 .env
 .env.*
 settings.json
 credentials.json
 
-# Системное
+# System
 .DS_Store
 Thumbs.db
 *.log

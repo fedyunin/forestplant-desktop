@@ -1,23 +1,23 @@
 /**
- * Разбор схем полей.
+ * Resolving field schemas.
  *
- * В системе 10 различных наборов имён полей. Номер выдела встречается как
- * НумерацияВыделов, Nвыд, NВыд, Нумерация_выделов; лесничество — как
- * Лесничество и Лесничеств. Тип слоя по названию тоже не определить: у
- * Северо-Казахстанской области выделы называются ВыдПород, ВыдПород2_12.
+ * The system holds 10 different sets of field names. The stand number appears
+ * as НумерацияВыделов, Nвыд, NВыд, Нумерация_выделов; the forestry as
+ * Лесничество and Лесничеств. Nor can a layer type be told from its name: in
+ * the North Kazakhstan region the stands are called ВыдПород, ВыдПород2_12.
  *
- * Поэтому роли выводятся по образцу имени, а не берутся из константы. Дважды
- * это уже приводило к молчаливым ошибкам, каждый раз выглядевшим исправно:
- * захардкоженное НумерацияВыделов покрывало 266 слоёв из 381 (у остальных в
- * подпись попадал бы OBJECTID), а роль «категория земель» перехватывала
- * КатегорияЗащитностиЛесныхЗемель — в названии есть и «категор», и «Земель».
+ * So roles are derived from the shape of a name instead of a constant. Twice
+ * that has already caused silent bugs, each looking perfectly healthy: a
+ * hardcoded НумерацияВыделов covered 266 layers out of 381 (the rest would
+ * have carried OBJECTID into the labels), and the «land category» role stole
+ * КатегорияЗащитностиЛесныхЗемель — the name holds both «категор» and «Земель».
  */
 
-/** [роль, что искать, что исключить] — порядок важен, первое совпадение выигрывает. */
+/** [role, what to look for, what to exclude] — order matters, first match wins. */
 export const ROLE_PATTERNS = [
-  // «квар» и «лесн» без окончаний: у Костанайской области поля усечены до
-  // «Nквар» и «Лесни», и требование полных слов молча отключало связывание
-  // кварталов для всей области.
+  // «квар» and «лесн» without endings: in the Kostanay region the fields are
+  // truncated to «Nквар» and «Лесни», and demanding whole words silently
+  // switched off block linking for the entire region.
   ['kv', /квар/i, /выд/i],
   ['vd', /выд/i, /квар/i],
   ['les', /^лесн/i, null],
@@ -26,12 +26,12 @@ export const ROLE_PATTERNS = [
   ['poroda', /^порода$/i, null],
   ['bonitet', /^бонитет/i, null],
   ['tip_lesa', /^тип.?леса/i, null],
-  // «защитность» разбирается раньше, иначе перехватит роль kat_zem
+  // «protection category» is resolved first, or it would steal the kat_zem role
   ['kat_zasch', /(категор.*защит|^катзащ$)/i, null],
   ['kat_zem', /(категор.*зем|^катзем$)/i, /защит/i],
 ];
 
-/** Имена полей -> { роль: имя поля }. */
+/** Field names -> { role: field name }. */
 export function resolveRoles(fieldNames) {
   const roles = {};
   for (const [role, include, exclude] of ROLE_PATTERNS) {
@@ -44,8 +44,8 @@ export function resolveRoles(fieldNames) {
 }
 
 /**
- * Тип слоя по составу полей, а не по названию.
- * Наличие номера квартала и номера выдела опознаёт слой выделов надёжно.
+ * Layer type from the composition of its fields, not from its name.
+ * A block number together with a stand number identifies a stand layer surely.
  */
 export function classifyLayer({ layerName = '', geometryType = '', kind = null }, roles) {
   if (!/Polygon/i.test(geometryType)) return 'misc';
@@ -54,7 +54,7 @@ export function classifyLayer({ layerName = '', geometryType = '', kind = null }
   return kind || 'misc';
 }
 
-/** Значение по роли, без хвоста .0 у чисел с плавающей точкой. */
+/** Value by role, without the trailing .0 of floating point numbers. */
 export function roleValue(props, roles, role) {
   if (!roles[role]) return null;
   const v = props[roles[role]];
@@ -75,28 +75,28 @@ export function asFloat(v) {
 }
 
 /**
- * Ключ для сопоставления названий лесничеств.
+ * Key for matching forestry names.
  *
- * В исходных данных встречаются опечатки — например «Каскеленско» вместо
- * «Каскеленское» у одного выдела из 2024. Кроме того, слой выделов называется
- * «Каскеленское лесничество», а в атрибутах кварталов то же самое записано как
- * «Каскеленское». Сравнивать сырые строки поэтому нельзя.
+ * The source data contains typos — «Каскеленско» instead of «Каскеленское»
+ * on one stand from 2024. On top of that the stand layer is called
+ * «Каскеленское лесничество» while the block attributes spell the same thing
+ * «Каскеленское». Comparing raw strings is therefore out.
  *
- * Нормализация снимает регистр, родовые слова и пунктуацию.
+ * Normalisation strips case, generic words and punctuation.
  */
 const GENERIC_WORDS = new Set([
   'лесничество', 'лесничества', 'лесничеств', 'лесн', 'лхо',
   'участок', 'участка', 'уч', 'филиал', 'филиала',
   'гу', 'кгу', 'лу', 'гнпп', 'гпз', 'гпр', 'ггпз', 'оопт',
-  // «Л-во» и «Уч.» распадаются на части при разбиении по пунктуации
+  // «Л-во» and «Уч.» fall apart into pieces when split on punctuation
   'л', 'во', 'лво',
 ]);
 
 export function forestryKey(name) {
   if (!name) return '';
-  // Разбор по токенам, а не регуляркой с \b: в JS граница слова определена
-  // только для латиницы, и на кириллице «Каскеленское лесничество» осталось бы
-  // с родовым словом, не совпав с «Каскеленское» из атрибутов кварталов.
+  // Split into tokens rather than a regex with \b: in JS a word boundary is
+  // defined for Latin only, so on Cyrillic «Каскеленское лесничество» would
+  // keep its generic word and never match «Каскеленское» from the blocks.
   return String(name)
     .toLowerCase()
     .replace(/ё/g, 'е')
@@ -105,7 +105,7 @@ export function forestryKey(name) {
     .join('');
 }
 
-/** Служебные поля, которые не нужно показывать в балуне KML. */
+/** Service fields that need not be shown in a KML balloon. */
 export const SKIP_FIELDS = new Set([
   'Shape', 'Shape.STArea()', 'Shape.STLength()',
   'created_user', 'created_date', 'last_edited_user', 'last_edited_date',

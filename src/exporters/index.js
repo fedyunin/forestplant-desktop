@@ -1,16 +1,16 @@
 /**
- * Реестр экспортёров.
+ * Registry of exporters.
  *
- * Экспорт — сменная часть приложения, а не его суть: основное здесь смотреть
- * и запрашивать данные. Каждый формат описывает себя сам — как называется, что
- * умеет настраивать и как выгружает. Добавление формата это новый файл в этом
- * каталоге плюс строка в списке ниже; интерфейс подстраивается сам.
+ * Export is a replaceable part of the application, not its point: what
+ * matters here is browsing and querying the data. Every format describes
+ * itself — its name, its settings and how it writes. Adding a format is a
+ * new file in this folder plus a line in the list below.
  *
- * Экспортёр:
- *   id       строковый идентификатор
- *   name     название для интерфейса
- *   hint     короткое пояснение
- *   options  описание настроек (тип, подпись, значение по умолчанию)
+ * An exporter:
+ *   id       string identifier
+ *   name     translation key of its name
+ *   hint     translation key of a short explanation
+ *   options  description of the settings (type, label key, default value)
  *   run({ db, filters, options, outDir, onProgress }) -> { files, ... }
  */
 
@@ -24,18 +24,18 @@ export const exporters = () => REGISTRY.map(({ id, name, hint, options }) => ({
 
 export function getExporter(id) {
   const e = REGISTRY.find((x) => x.id === id);
-  if (!e) throw new Error(`Неизвестный формат: ${id}`);
+  if (!e) throw new Error(`Unknown format: ${id}`);
   return e;
 }
 
-/** Значения настроек по умолчанию для формата. */
+/** Default option values of a format. */
 export function defaultOptions(id) {
   const out = {};
   for (const o of getExporter(id).options) out[o.key] = o.value;
   return out;
 }
 
-/** Оставить только известные настройки известных типов. */
+/** Keep only known settings of known types. */
 export function sanitizeOptions(id, raw = {}) {
   const out = {};
   for (const o of getExporter(id).options) {
