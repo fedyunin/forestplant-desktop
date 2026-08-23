@@ -18,6 +18,12 @@ npmRebuild: true
 asarUnpack:
   - "**/node_modules/better-sqlite3/**"
 
+# File names carry no version on purpose: the README links to
+# releases/latest/download/<name>, so those links keep working release after
+# release and nothing has to be edited when one ships.
+dmg:
+  artifactName: ForestPlant-mac-${arch}.dmg
+
 mac:
   # The bundle name must be ASCII: with Cyrillic the built application fails
   # Electron initialisation and dies at startup. The display name is set
@@ -41,6 +47,7 @@ win:
       arch: [x64]
 
 nsis:
+  artifactName: ForestPlant-win-x64-setup.exe
   oneClick: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true

@@ -1,5 +1,9 @@
 # Forest Fund — export to KML
 
+[![checks](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml)
+[![installers](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml)
+[![latest release](https://img.shields.io/github/v/release/fedyunin/forestplant-desktop)](https://github.com/fedyunin/forestplant-desktop/releases/latest)
+
 A desktop application: it pulls forest fund data out of the GIS
 `forestplant.gharysh.kz`, keeps it locally, and hands selections over as KML
 for Google Earth.
@@ -9,6 +13,30 @@ the administrator — the data cannot be taken from there by ordinary means.
 
 The interface speaks English and Russian; the language is chosen in Settings
 and follows the system by default.
+
+## Download a build
+
+| | |
+|---|---|
+| **macOS** — Apple Silicon | [ForestPlant-mac-arm64.dmg](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-mac-arm64.dmg) |
+| **macOS** — Intel | [ForestPlant-mac-x64.dmg](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-mac-x64.dmg) |
+| **Windows** — installer | [ForestPlant-win-x64-setup.exe](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-win-x64-setup.exe) |
+
+Those links always resolve to the newest release — every version is built on
+[GitHub Actions](.github/workflows/release.yml) under the same file names, so
+nothing here needs editing when one ships. Every build is on the
+[releases page](https://github.com/fedyunin/forestplant-desktop/releases).
+
+The builds are ad-hoc signed but not notarized — that needs a paid Apple
+Developer ID — so the first launch needs a nudge past the OS:
+
+- **macOS** — right-click the app → **Open**, then confirm. Or, if macOS still
+  refuses: `xattr -cr "/Applications/ForestPlant.app"`.
+- **Windows** — *More info* → *Run anyway*.
+
+An installed application still needs the data. Point it at a data folder
+someone else has already synced, or give it GIS credentials in Settings and let
+it fetch the data itself — the first full sync takes hours.
 
 ## Quick start
 
@@ -42,12 +70,13 @@ npm run dist:mac
 npm run dist:win
 ```
 
-The finished files land in `dist/`. Pushing a `v*` tag builds them on GitHub
-and attaches them to a draft Release.
+The finished files land in `dist/` under the same names as the released ones —
+`ForestPlant-mac-arm64.dmg`, `ForestPlant-mac-x64.dmg`,
+`ForestPlant-win-x64-setup.exe`. They carry no version on purpose, so the
+download links above keep working release after release.
 
-There is no signing with a real certificate, so on the first launch:
-- **macOS** — right-click the app, «Open», confirm once;
-- **Windows** — in the SmartScreen warning press «More info» and «Run anyway».
+Pushing a `v*` tag builds all three on GitHub and attaches them to a draft
+Release, which stays a draft until someone presses Publish.
 
 Three things that took a long time and must not be touched without a reason:
 
