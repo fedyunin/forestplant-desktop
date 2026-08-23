@@ -2,7 +2,7 @@
 
 [![checks](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml)
 [![installers](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml)
-[![latest release](https://img.shields.io/github/v/release/fedyunin/forestplant-desktop)](https://github.com/fedyunin/forestplant-desktop/releases/latest)
+[![releases](https://img.shields.io/badge/releases-latest-1f6feb)](https://github.com/fedyunin/forestplant-desktop/releases/latest)
 
 A desktop application: it pulls forest fund data out of the GIS
 `forestplant.gharysh.kz`, keeps it locally, and hands selections over as KML
