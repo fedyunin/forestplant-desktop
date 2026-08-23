@@ -27,6 +27,9 @@ Those links always resolve to the newest release — every version is built on
 nothing here needs editing when one ships. Every build is on the
 [releases page](https://github.com/fedyunin/forestplant-desktop/releases).
 
+The repository is private, so the links work only while signed in to GitHub
+with access to it. Without access they answer 404 rather than a download.
+
 The builds are ad-hoc signed but not notarized — that needs a paid Apple
 Developer ID — so the first launch needs a nudge past the OS:
 
