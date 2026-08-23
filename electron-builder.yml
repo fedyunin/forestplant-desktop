@@ -1,0 +1,51 @@
+appId: kz.gharysh.forestplant
+productName: ForestPlant
+copyright: ""
+
+directories:
+  output: dist
+  buildResources: build
+
+# В сборку идёт только то, что нужно приложению: сырой архив и база остаются
+# снаружи — их путь пользователь задаёт сам на вкладке «Данные».
+files:
+  - src/**/*
+  - package.json
+  - "!**/*.map"
+
+# better-sqlite3 — нативный модуль, его нужно пересобрать под Electron
+npmRebuild: true
+asarUnpack:
+  - "**/node_modules/better-sqlite3/**"
+
+mac:
+  # Имя бандла обязано быть латиницей: с кириллицей собранное приложение
+  # не проходит инициализацию Electron и падает при запуске. Русское название
+  # задаётся отдельно, через CFBundleDisplayName.
+  extendInfo:
+    CFBundleDisplayName: Лесной фонд
+  category: public.app-category.utilities
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  # Настоящего сертификата нет, но на Apple Silicon бинарник обязан быть
+  # подписан хотя бы формально, иначе система его убивает при запуске.
+  identity: "-"
+  hardenedRuntime: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Лесной фонд
+
+linux:
+  target: [AppImage]
+  category: Utility

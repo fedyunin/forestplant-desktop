@@ -1,0 +1,35 @@
+{
+  "name": "forestplant-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Выгрузка данных лесного фонда из ГИС forestplant.gharysh.kz в KML",
+  "type": "module",
+  "main": "src/main/bootstrap.cjs",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "load": "node src/cli/load.js --raw db/raw --db db/forest.sqlite",
+    "test": "node --test test/*.test.js",
+    "smoke": "node scripts/start.js --smoke",
+    "sync": "node src/cli/sync.js --raw db/raw --db db/forest.sqlite",
+    "dist": "electron-builder --mac --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0"
+  },
+  "author": "КазЛП",
+  "license": "UNLICENSED"
+}

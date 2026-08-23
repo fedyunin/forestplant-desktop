@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+<title>Лесной фонд</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">Лесной фонд</div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="data">Данные</button>
+    <button class="tab" data-tab="export">Экспорт</button>
+    <button class="tab" data-tab="settings">Настройки</button>
+  </nav>
+  <div class="dbinfo" id="dbinfo">база не открыта</div>
+</header>
+
+<main>
+
+<!-- ================================================ ДАННЫЕ -->
+<section class="page active" id="page-data">
+  <div class="split">
+    <aside class="side">
+      <div class="side-h">
+        <input type="search" id="dSearch" placeholder="лесничество, учреждение, область…">
+      </div>
+      <div class="side-list" id="dList"></div>
+      <div class="side-f">
+        <button class="link" id="dClear">сбросить выбор</button>
+        <span id="dPicked">всё</span>
+      </div>
+    </aside>
+
+    <div class="main-col">
+      <div class="bar">
+        <div class="modes" id="dModes">
+          <button class="mode on" data-mode="filters">Фильтры</button>
+          <button class="mode" data-mode="sql">SQL</button>
+        </div>
+        <span class="grow"></span>
+        <span class="count" id="dCount"></span>
+      </div>
+
+      <div id="dModeFilters">
+        <div class="bar">
+          <label class="inline">Квартал <input id="dKvartal" placeholder="1,5-9"></label>
+          <label class="inline">Выдел <input id="dVydel" placeholder="2,3"></label>
+          <label class="inline">Площадь от <input id="dPloshadMin" type="number" step="0.1"></label>
+          <label class="inline">до <input id="dPloshadMax" type="number" step="0.1"></label>
+          <button class="ghost small" id="dMoreFilters">ещё фильтры</button>
+        </div>
+        <div class="facets" id="dFacets" hidden></div>
+      </div>
+
+      <div id="dModeSql" hidden>
+        <div class="sqlbox">
+          <textarea id="dSqlText" rows="4" spellcheck="false"></textarea>
+          <div class="bar">
+            <button class="primary" id="dSqlRun">Применить</button>
+            <button class="ghost small" id="dSqlFromFilters">взять из фильтров</button>
+            <select id="dSqlTables"></select>
+            <span class="grow"></span>
+            <span class="hint" id="dSqlInfo"></span>
+          </div>
+          <p class="hint">Запрос, вернувший колонку <code>id</code>, становится выборкой:
+            её видно в таблице ниже и можно выгрузить. Запрос без <code>id</code> —
+            просто отчёт, выгружать нечего.</p>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="grid" id="dTable">
+          <thead id="dHead"></thead>
+          <tbody id="dBody"></tbody>
+        </table>
+        <div class="empty" id="dEmpty" hidden>ничего не найдено</div>
+      </div>
+
+      <div class="pager">
+        <button class="ghost small" id="dPrev">←</button>
+        <span id="dRange">—</span>
+        <button class="ghost small" id="dNext">→</button>
+        <span class="grow"></span>
+        <button class="ghost small" id="dToExport">Выгрузить эту выборку</button>
+      </div>
+    </div>
+
+    <aside class="detail" id="dDetail" hidden>
+      <div class="detail-h">
+        <span id="dDetailTitle">Объект</span>
+        <button class="link" id="dDetailClose">закрыть</button>
+      </div>
+      <div class="detail-body" id="dDetailBody"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================================================ ЭКСПОРТ -->
+<section class="page" id="page-export">
+  <div class="split">
+    <aside class="side">
+      <div class="side-h">
+        <input type="search" id="eSearch" placeholder="найти лесничество…">
+      </div>
+      <div class="side-list" id="eList"></div>
+      <div class="side-f">
+        <button class="link" id="eAddFound">добавить найденные</button>
+        <button class="link" id="eClear">очистить</button>
+      </div>
+    </aside>
+
+    <div class="main-col">
+      <div class="picked" id="ePicked"></div>
+
+      <div class="bar">
+        <label class="inline">Формат
+          <select id="eFormat"></select>
+        </label>
+        <span class="hint" id="eHint"></span>
+      </div>
+
+      <div class="opts" id="eOpts"></div>
+
+      <div class="bar">
+        <label class="inline">Квартал <input id="eKvartal" placeholder="1,5-9"></label>
+        <label class="inline">Выдел <input id="eVydel" placeholder="2,3"></label>
+        <label class="inline">Площадь от <input id="ePloshadMin" type="number" step="0.1"></label>
+        <label class="inline">до <input id="ePloshadMax" type="number" step="0.1"></label>
+      </div>
+
+      <canvas id="ePreview" width="560" height="130"></canvas>
+    </div>
+  </div>
+
+  <footer class="actions">
+    <div class="preview-line" id="eLine">выберите лесничества слева</div>
+    <button class="primary" id="eRun" disabled>Выгрузить</button>
+  </footer>
+</section>
+
+<!-- ================================================ НАСТРОЙКИ -->
+<section class="page" id="page-settings">
+  <div class="pad narrow">
+
+    <h3>Каталог данных</h3>
+    <p class="hint">Внутри лежат база <code>forest.sqlite</code> и сырой архив <code>raw/</code>.
+      Архив нужен только для синхронизации: база пересобирается из него, обратно — нет.</p>
+    <div class="path-row">
+      <code id="sDataDir">не выбран</code>
+      <button class="ghost small" id="sPickDir">Выбрать…</button>
+      <button class="ghost small" id="sReveal">Показать</button>
+    </div>
+    <div class="stats" id="sStore"></div>
+
+    <h3>Учётные данные к ГИС</h3>
+    <p class="hint">Нужны только для синхронизации. Пароль шифруется системной
+      связкой ключей и в файлы не попадает.</p>
+    <div class="path-row">
+      <span id="sCreds">не заданы</span>
+      <button class="ghost small" id="sCredsSet">Указать…</button>
+      <button class="ghost small" id="sCredsClear">Забыть</button>
+    </div>
+
+    <h3>Управление базой</h3>
+    <div class="bar">
+      <button class="ghost" id="sCheck">Проверить обновления</button>
+      <button class="ghost" id="sPull" disabled>Докачать</button>
+      <button class="ghost" id="sRetry">Повторить упавшие</button>
+      <button class="ghost" id="sRebuild">Пересобрать из архива</button>
+    </div>
+    <p class="hint">Проверка опрашивает отпечаток каждого слоя и ничего не качает.
+      Пересборка нужна после исправлений в разборе данных — она не обращается к серверу.</p>
+
+    <div class="progress" id="sProgress" hidden>
+      <div class="bar-line"><div class="fill" id="sFill"></div></div>
+      <div class="plog" id="sLog"></div>
+    </div>
+    <div id="sResult"></div>
+
+    <h3>Состояние архива</h3>
+    <div id="sBad"></div>
+
+    <h3>Схемы полей</h3>
+    <p class="hint">Имена полей в системе разнородны: номер выдела встречается как
+      НумерацияВыделов, Nвыд, NВыд, Нумерация_выделов. Здесь видно, какое поле в
+      какую роль легло — дважды именно здесь пряталась молчаливая ошибка.</p>
+    <div id="sSchemas"></div>
+  </div>
+</section>
+
+</main>
+
+<!-- Учётные данные: отдельная форма, prompt() в Electron не работает -->
+<div class="modal" id="credsModal" hidden>
+  <form class="modal-box" id="credsForm">
+    <h3>Учётные данные к ГИС</h3>
+    <label>Логин<input id="credsUser" autocomplete="username" required></label>
+    <label>Пароль<input id="credsPass" type="password" autocomplete="current-password" required></label>
+    <div class="modal-actions">
+      <button type="button" class="ghost" id="credsCancel">Отмена</button>
+      <button type="submit" class="primary">Сохранить</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

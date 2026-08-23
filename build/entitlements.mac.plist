@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Формальная подпись без сертификата Apple: без отказа от проверки библиотек
+    система убивает приложение при загрузке нативного модуля better-sqlite3.
+    При появлении настоящего Developer ID эти два ключа можно убрать.
+  -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <!--
+    V8 компилирует код на лету, и без права на JIT он не может зарезервировать
+    исполняемую память: приложение падает с «Failed to reserve virtual memory
+    for CodeRange». Права allow-unsigned-executable-memory здесь не нужно — на
+    Apple Silicon оно как раз мешает.
+  -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>

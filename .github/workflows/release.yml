@@ -1,0 +1,72 @@
+name: Установщики
+
+# Запускается тегом вида v0.1.0. Собирать на каждый push незачем: минуты
+# macOS стоят вдесятеро дороже обычных, а установщики нужны по факту выпуска.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # нужно, чтобы выложить файлы в Releases
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false   # сбой одной платформы не отменяет другую
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+            build: npm run dist:mac
+            artifacts: dist/*.dmg
+          # Windows собирается на настоящей Windows: нативный модуль базы
+          # там пересобирается под свою платформу, а не подставляется.
+          - os: windows-latest
+            label: Windows
+            build: npm run dist:win
+            artifacts: dist/*.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Сборка
+        run: ${{ matrix.build }}
+        env:
+          # Подписи нет: без этого electron-builder ищет сертификат и падает
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.label }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Выложить в Releases
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: files/*
+          draft: true      # черновик: посмотреть перед публикацией
+          generate_release_notes: true
