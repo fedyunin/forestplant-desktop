@@ -11,9 +11,9 @@
     "test": "node --test test/*.test.js",
     "smoke": "node scripts/start.js --smoke",
     "sync": "node src/cli/sync.js --raw db/raw --db db/forest.sqlite",
-    "dist": "electron-builder --mac --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win",
+    "dist": "electron-builder --mac --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:win": "electron-builder --win --publish never",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
