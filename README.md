@@ -11,8 +11,8 @@ for Google Earth.
 The GIS itself offers no export, and the services directory is switched off by
 the administrator — the data cannot be taken from there by ordinary means.
 
-The interface speaks English and Russian; the language is chosen in Settings
-and follows the system by default.
+The interface speaks Kazakh, Russian and English; the language is chosen in
+Settings and follows the system by default.
 
 ## Download a build
 

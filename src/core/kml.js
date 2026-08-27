@@ -53,6 +53,17 @@ const TEXT = {
     kvPrefix: 'BL',
     part: (i, n) => ` (part ${i} of ${n})`,
   },
+  kk: {
+    outline: 'Орманшылық шекарасы',
+    kvartaly: 'Кварталдар',
+    kvLabels: 'Квартал жазулары',
+    vydely: 'Бөліктер',
+    vdLabels: 'Бөлік жазулары',
+    kv: 'кв',
+    vd: 'бөл',
+    kvPrefix: 'КВ',
+    part: (i, n) => ` (${n} бөліктің ${i}-сі)`,
+  },
 };
 
 const text = (lang) => TEXT[lang] || TEXT.ru;

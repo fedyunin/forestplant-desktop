@@ -90,6 +90,7 @@ const DICT = {
     'settings.langSystem': 'как в системе',
     'settings.langRu': 'Русский',
     'settings.langEn': 'English',
+    'settings.langKk': 'Қазақша',
     'settings.creds': 'Учётные данные к ГИС',
     'settings.credsHint': 'Нужны только для синхронизации. Пароль шифруется системной '
       + 'связкой ключей и в файлы не попадает.',
@@ -283,6 +284,7 @@ const DICT = {
     'settings.langSystem': 'follow system',
     'settings.langRu': 'Русский',
     'settings.langEn': 'English',
+    'settings.langKk': 'Қазақша',
     'settings.creds': 'GIS credentials',
     'settings.credsHint': 'Needed only for syncing. The password is encrypted by the system '
       + 'keychain and never written to files.',
@@ -394,17 +396,221 @@ const DICT = {
     'unit.mb': 'MB',
     'unit.b': 'B',
   },
+  kk: {
+    'app.title': 'Орман қоры',
+    'tab.data': 'Деректер',
+    'tab.export': 'Экспорт',
+    'tab.settings': 'Баптаулар',
+    'db.notOpen': 'дерекқор ашылмаған',
+    'db.notChosen': 'дерекқор таңдалмаған',
+    'db.info': '{vydels} бөлік · {forestries} орманшылық · {oblasts} облыс',
+
+    'search.forestry': 'орманшылық, мекеме, облыс…',
+    'search.findForestry': 'орманшылықты табу…',
+    'list.clearPick': 'таңдауды тазалау',
+    'list.all': 'барлығы',
+    'list.picked': '{n} таңдалды',
+    'list.addFound': 'табылғандарды қосу',
+    'list.clear': 'тазалау',
+
+    'mode.filters': 'Сүзгілер',
+    'mode.sql': 'SQL',
+    'filter.kvartal': 'Квартал',
+    'filter.vydel': 'Бөлік',
+    'filter.areaFrom': 'Ауданы',
+    'filter.areaTo': 'дейін',
+    'filter.more': 'қосымша сүзгілер',
+    'filter.poroda': 'Тұқымы',
+    'filter.katZem': 'Жер санаты',
+    'filter.bonitet': 'Бонитет',
+
+    'sql.apply': 'Қолдану',
+    'sql.fromFilters': 'сүзгілерден алу',
+    'sql.tables': 'кестелер…',
+    'sql.running': 'орындалуда…',
+    'sql.hint': 'id бағанын қайтарған сұраныс іріктеуге айналады: оны төмендегі кестеден '
+      + 'көруге және экспорттауға болады. id жоқ сұраныс — жай есеп, экспорттайтын ештеңе жоқ.',
+    'sql.selection': 'іріктеу: {n} нысан, {ms} мс',
+    'sql.report': 'есеп: {n} жол, {ms} мс',
+    'sql.reportNoExport': ' · id бағаны жоқ, экспорттау мүмкін емес',
+    'sql.truncated': ' (қысқартылған)',
+    'sql.reportRows': 'есептің {n} жолы',
+
+    'data.objects': '{n} нысан',
+    'data.empty': 'ештеңе табылмады',
+    'data.range': '{total} ішінен {from}–{to}',
+    'data.toExport': 'Осы іріктеуді экспорттау',
+    'data.chooseDb': 'дерекқор таңдалмаған — баптаулардан деректер қалтасын көрсетіңіз',
+
+    'detail.title': '{kvartal}-квартал {vydel}-бөлік',
+    'detail.close': 'жабу',
+    'detail.parsed': 'Талданған өрістер',
+    'detail.raw': 'Дереккөздегідей',
+    'detail.extent': 'Қамтуы',
+    'detail.geometry': 'геометрия',
+    'detail.yes': 'бар',
+    'detail.no': 'жоқ',
+    'detail.lon': 'бойлық',
+    'detail.lat': 'ендік',
+
+    'export.format': 'Пішім',
+    'export.nothingPicked': 'ештеңе таңдалмаған',
+    'export.pickLeft': 'сол жақтан орманшылық таңдаңыз',
+    'export.counting': 'есептелуде…',
+    'export.estimate': '{vydels} бөлік, {vertices} төбе → шамамен {files} файл',
+    'export.willSplit': ' (бөліктерге бөлінеді)',
+    'export.nothingMatches': 'сүзгіге ештеңе сәйкес келмейді',
+    'export.run': 'Экспорттау',
+    'export.running': 'Экспортталуда…',
+    'export.done': 'дайын: {vydels} бөлік, {files} файл',
+    'export.skippedGeom': ' · геометриясы бұзылғандықтан өткізілді: {n}',
+    'export.toast': '{vydels} бөлік {files} файлға экспортталды',
+
+    'settings.dataDir': 'Деректер қалтасы',
+    'settings.dataDirHint': 'Ішінде forest.sqlite дерекқоры мен raw/ мұрағаты жатады. '
+      + 'Мұрағат тек синхрондауға қажет: дерекқор одан қайта құрылады, кері қарай емес.',
+    'settings.notChosen': 'таңдалмаған',
+    'settings.choose': 'Таңдау…',
+    'settings.reveal': 'Көрсету',
+    'settings.language': 'Тіл',
+    'settings.languageHint': 'Әдепкіде жүйеден алынады.',
+    'settings.langSystem': 'жүйедегідей',
+    'settings.langRu': 'Русский',
+    'settings.langEn': 'English',
+    'settings.langKk': 'Қазақша',
+    'settings.creds': 'ГАЖ тіркелгі деректері',
+    'settings.credsHint': 'Тек синхрондауға қажет. Құпиясөз жүйелік кілттер қоймасында '
+      + 'шифрланады және файлдарға жазылмайды.',
+    'settings.credsNone': 'берілмеген',
+    'settings.credsSet': 'Енгізу…',
+    'settings.credsForget': 'Ұмыту',
+    'settings.credsSaved': 'Жүйелік кілттер қоймасына сақталды',
+    'settings.credsCleared': 'Тіркелгі деректері ұмытылды',
+    'settings.login': 'Логин',
+    'settings.password': 'Құпиясөз',
+    'settings.cancel': 'Болдырмау',
+    'settings.save': 'Сақтау',
+
+    'settings.dbSection': 'Дерекқорды басқару',
+    'settings.check': 'Жаңартуларды тексеру',
+    'settings.pull': 'Жүктеп алу',
+    'settings.retry': 'Сәтсіздерді қайталау',
+    'settings.rebuild': 'Мұрағаттан қайта құру',
+    'settings.dbHint': 'Тексеру әр қабаттың таңбасын сұрайды және ештеңе жүктемейді. '
+      + 'Қайта құру деректерді талдау түзетілгеннен кейін қажет — ол серверге жүгінбейді.',
+    'settings.archiveState': 'Мұрағат күйі',
+    'settings.schemas': 'Өріс сұлбалары',
+    'settings.schemasHint': 'Жүйедегі өріс атаулары әртүрлі: бөлік нөмірі НумерацияВыделов, '
+      + 'Nвыд, NВыд, Нумерация_выделов түрінде кездеседі. Мұнда қай өріс қай рөлге түскені '
+      + 'көрінеді — дәл осы жерде екі рет үнсіз қате жасырынған.',
+    'settings.summary': 'Жиынтық',
+
+    'stat.db': 'Дерекқор',
+    'stat.archive': 'Мұрағат',
+    'stat.archiveLayers': 'Мұрағаттағы қабаттар',
+    'stat.objects': 'Нысандар',
+    'stat.vydels': 'Бөліктер',
+    'stat.kvartaly': 'Кварталдар',
+    'stat.forestries': 'Орманшылықтар',
+    'stat.oblasts': 'Облыстар',
+    'stat.schemaVersion': 'Сұлба нұсқасы',
+    'stat.none': 'жоқ',
+
+    'sync.noChanges': 'Өзгеріс жоқ, дерекқор өзекті.',
+    'sync.toPull': 'Жүктеуге {n} қабат',
+    'sync.removed': ', серверден {n} жоғалды (дерекқорда қалады)',
+    'sync.layer': 'Қабат',
+    'sync.oblast': 'Облыс',
+    'sync.whatChanged': 'Не өзгерді',
+    'sync.reason': 'Себебі',
+    'sync.noRights': 'рұқсат жоқ (403)',
+    'sync.allFetched': 'Барлық қабат толық алынды.',
+    'sync.badSummary': '{layers} қабаттың {bad} қолжетімсіз: рұқсат жоқ {noRights}, '
+      + 'басқа {other}. Рұқсаттан бас тарту қайталаумен түзелмейді.',
+    'sync.archiveUnavailable': 'Мұрағат қолжетімсіз.',
+    'sync.nothingToPull': 'Жүктейтін ештеңе жоқ',
+    'sync.pulled': '{n} қабат жүктелді',
+    'sync.rebuilt': 'Дерекқор қайта құрылды',
+    'sync.probed': 'сұралды {i}/{total}',
+    'sync.loaded': 'жүктелді {i}/{total}',
+    'sync.status.fetching': 'жүктелуде',
+    'sync.status.done': 'дайын',
+    'sync.status.partial': 'толық емес',
+    'sync.status.failed': 'қате',
+    'sync.pullReport': '{done} қабат, {failed} қате, {features} нысан',
+    'sync.rebuildReport': '{loaded} қабат жүктелді, {links} байланыс',
+    'sync.dbConnected': 'Дерекқор қосылды',
+    'sync.noDbInDir': 'Қалтада дерекқор жоқ — синхрондаңыз немесе басқасын көрсетіңіз',
+    'sync.chooseDbFirst': 'Жоғарыдан дерекқор файлын таңдаңыз.',
+
+    'role.les': 'орманшылық',
+    'role.kv': 'квартал нөмірі',
+    'role.vd': 'бөлік нөмірі',
+    'role.comp': 'мекеме',
+    'role.ploshad': 'ауданы',
+    'role.poroda': 'тұқымы',
+    'role.bonitet': 'бонитет',
+    'role.tip_lesa': 'орман типі',
+    'role.kat_zem': 'жер санаты',
+    'role.kat_zasch': 'қорғаныштық санаты',
+
+    'col.oblast': 'Облыс',
+    'col.lesnichestvo': 'Орманшылық',
+    'col.kvartal': 'Квартал',
+    'col.vydel': 'Бөлік',
+    'col.ploshad': 'Ауданы, га',
+    'col.poroda': 'Тұқымы',
+    'col.bonitet': 'Бонитет',
+    'col.tip_lesa': 'Орман типі',
+    'col.kat_zem': 'Жер санаты',
+
+    'fmt.kml.name': 'Google Earth үшін KML',
+    'fmt.kml.hint': 'Жазулары, квартал және орманшылық шекаралары бар полигондар. '
+      + 'Ірі іріктеулер Google Earth шегіне сыю үшін бөліктерге бөлінеді.',
+    'opt.split': 'Файлдар',
+    'opt.split.les': 'әр орманшылыққа бір',
+    'opt.split.none': 'бір ортақ файл',
+    'opt.labelFormat': 'Бөлік жазулары',
+    'opt.labelFormat.vydel': 'бөлік нөмірі — 5',
+    'opt.labelFormat.kvvd': 'квартал-бөлік — 29-5',
+    'opt.labelFormat.full': '29-квартал 5-бөлік',
+    'opt.labels': 'жазулар',
+    'opt.kvartaly': 'кварталдар',
+    'opt.outline': 'орманшылық шекарасы',
+    'opt.index': 'сілтемелері бар жиынтық файл',
+    'opt.budget': 'Файлдағы төбе шегі',
+    'opt.lesColor': 'Орманшылық шекарасы',
+    'opt.kvColor': 'Кварталдар',
+    'opt.vdColor': 'Бөліктер',
+    'opt.width': 'қалыңдығы',
+    'opt.vdFill': 'бөліктің бояуы',
+
+    'unit.gb': 'ГБ',
+    'unit.mb': 'МБ',
+    'unit.b': 'Б',
+  },
 };
+
+/** Languages the interface speaks, in the order they appear in the settings. */
+export const LANGS = ['ru', 'en', 'kk'];
+
+const LOCALES = { ru: 'ru-RU', en: 'en-US', kk: 'kk-KZ' };
 
 let lang = 'ru';
 
 export const setLang = (code) => { lang = DICT[code] ? code : 'ru'; };
 export const getLang = () => lang;
-export const locale = () => (lang === 'ru' ? 'ru-RU' : 'en-US');
+export const locale = () => LOCALES[lang] || 'en-US';
 
-/** Translate a key, substituting {name} placeholders. */
+/**
+ * Translate a key, substituting {name} placeholders.
+ *
+ * The fallbacks matter only while a translation is being added: a key missing
+ * from one dictionary shows in Russian rather than as a bare key. The test
+ * suite keeps the three dictionaries in step, so this should never fire.
+ */
 export function t(key, params) {
-  const s = DICT[lang][key] ?? DICT.ru[key] ?? key;
+  const s = DICT[lang][key] ?? DICT.ru[key] ?? DICT.en[key] ?? key;
   if (!params) return s;
   return s.replace(/\{(\w+)\}/g, (m, name) => (name in params ? params[name] : m));
 }

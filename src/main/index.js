@@ -156,24 +156,24 @@ async function runSmoke(w) {
     })()`);
     check('search in the list', srch > 0 && srch < 20, `${srch} found`);
 
-    // Both languages must render: a missing key or a broken re-render shows up
-    // as a label that stayed in the other language.
+    // Every language must render: a missing key or a broken re-render shows up
+    // as a label that stayed in another language.
     const lang = await js(`(async () => {
       const sel = document.getElementById('sLang');
       const was = sel.value;
       const label = () => document.querySelector('.tab[data-tab="data"]').textContent;
-      sel.value = 'en'; sel.dispatchEvent(new Event('change'));
-      await new Promise(r => setTimeout(r, 900));
-      const en = label();
-      sel.value = 'ru'; sel.dispatchEvent(new Event('change'));
-      await new Promise(r => setTimeout(r, 900));
-      const ru = label();
+      const seen = {};
+      for (const code of ['en', 'ru', 'kk']) {
+        sel.value = code; sel.dispatchEvent(new Event('change'));
+        await new Promise(r => setTimeout(r, 900));
+        seen[code] = label();
+      }
       sel.value = was; sel.dispatchEvent(new Event('change'));
       await new Promise(r => setTimeout(r, 900));
-      return { en, ru, back: label() };
+      return { ...seen, back: label() };
     })()`);
-    check('language switch', lang.en === 'Data' && lang.ru === 'Данные',
-      `en=${lang.en} ru=${lang.ru} restored=${lang.back}`);
+    check('language switch', lang.en === 'Data' && lang.ru === 'Данные' && lang.kk === 'Деректер',
+      `en=${lang.en} ru=${lang.ru} kk=${lang.kk} restored=${lang.back}`);
 
     // SQL as the second way of building a selection: a query with an id column
     // must become a selection fit for export, and one without it stays a report.

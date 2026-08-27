@@ -26,6 +26,13 @@ const TEXT = {
     indexFile: '_ALL.kml',
     indexName: 'Forest fund — index',
   },
+  kk: {
+    selection: 'Іріктеу',
+    selectionFile: 'іріктеу',
+    noName: 'атауы жоқ',
+    indexFile: '_БАРЛЫҒЫ.kml',
+    indexName: 'Орман қоры — жиынтық',
+  },
 };
 
 const safe = (s, fallback) => String(s || '').replace(/[^\p{L}\p{N}\-. ()]+/gu, '_').trim() || fallback;

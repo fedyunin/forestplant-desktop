@@ -163,7 +163,7 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
   }));
 
   ipcMain.handle('settings:setLanguage', ok((lang) => {
-    const v = ['system', 'ru', 'en'].includes(str(lang)) ? str(lang) : 'system';
+    const v = ['system', ...settings.LANGUAGES].includes(str(lang)) ? str(lang) : 'system';
     settings.save({ language: v });
     return { language: v, effectiveLanguage: settings.language() };
   }));

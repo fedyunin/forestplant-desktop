@@ -110,18 +110,21 @@ export function status() {
   };
 }
 
+/** Languages the interface speaks. Keep in step with src/renderer/i18n.js. */
+export const LANGUAGES = ['ru', 'en', 'kk'];
+
 /**
  * Effective interface language.
  *
- * 'system' asks the OS. Electron reports locales like 'ru-RU' or 'en-GB',
- * so only the primary subtag matters; anything we do not translate falls
- * back to English.
+ * 'system' asks the OS. Electron reports locales like 'ru-RU', 'kk-KZ' or
+ * 'en-GB', so only the primary subtag matters; anything we do not translate
+ * falls back to English.
  */
 export function language() {
   const chosen = load().language;
-  if (chosen === 'ru' || chosen === 'en') return chosen;
+  if (LANGUAGES.includes(chosen)) return chosen;
   const sys = String(app.getLocale() || '').toLowerCase();
-  return sys.startsWith('ru') ? 'ru' : 'en';
+  return LANGUAGES.find((l) => sys.startsWith(l)) || 'en';
 }
 
 /** Where to suggest putting the data when no folder has been chosen yet. */

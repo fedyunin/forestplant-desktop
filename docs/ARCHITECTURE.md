@@ -234,14 +234,22 @@ not one miss.
 
 ## Interface language
 
-The dictionary lives in `src/renderer/i18n.js`, and the markup carries the keys
-in `data-i18n`. The language is chosen in Settings and follows `app.getLocale()`
-by default. Text that reaches the exported files is chosen in the same way and
-passed down to the exporter — the KML that a Russian-speaking forester opens
-should not suddenly speak English.
+Three languages: Kazakh, Russian and English. The dictionary lives in
+`src/renderer/i18n.js`, and the markup carries the keys in `data-i18n`. The
+language is chosen in Settings and follows `app.getLocale()` by default. Text
+that reaches the exported files is chosen in the same way and passed down to
+the exporter — the KML that a Russian-speaking forester opens should not
+suddenly speak English.
+
+The dictionaries are held in step by a test rather than by eye: it compares the
+key sets, catches a key declared twice, and checks that a phrase keeps the same
+`{placeholders}` in every language. A key translated into one language and
+forgotten in another would otherwise show as a stray phrase in the wrong
+language — `t()` falls back to Russian, so nothing would look broken.
 
 The window self-check reads data attributes and numbers rather than the visible
-text, so switching the language cannot break it.
+text, so switching the language cannot break it — and it switches through all
+three languages to see that each one renders.
 
 ## Quality
 
