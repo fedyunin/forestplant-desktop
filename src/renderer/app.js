@@ -54,37 +54,72 @@ const goTab = (name) => document.querySelector(`.tab[data-tab="${name}"]`).click
 /**
  * The same list serves both tabs. Search rather than a tree of checkboxes:
  * with half a thousand forestries, ticking them one by one is impossible.
+ *
+ * The two header rows — region, then agency — are picks of their own: one
+ * click takes a whole region. Clicking a header that is already fully picked
+ * clears it, so the same row both selects and deselects.
+ *
+ * onPick receives the list of keys a row stands for; the caller decides what
+ * selecting means and re-renders.
  */
-function renderList(box, picked, onToggle, filter = '') {
+function renderList(box, picked, onPick, filter = '') {
   const q = filter.trim().toLowerCase();
   const frag = document.createDocumentFragment();
-  let lastGroup = null;
+  // A sentinel rather than null: the layer path is short for some services, so
+  // both oblast and uchrezhdenie can genuinely be null, and `null !== null`
+  // would swallow the header of the very first group.
+  const NONE = Symbol('unset');
+  let lastOblast = NONE;
+  let lastGroup = NONE;
   let shown = 0;
 
-  for (const f of state.forestries) {
-    const hay = `${f.name} ${f.uchrezhdenie || ''} ${f.oblast || ''}`.toLowerCase();
-    if (q && !hay.includes(q)) continue;
+  const visible = state.forestries.filter(
+    (f) => !q || `${f.name} ${f.uchrezhdenie || ''} ${f.oblast || ''}`.toLowerCase().includes(q),
+  );
+  const keysWhere = (pick) => visible.filter(pick);
+
+  const header = (cls, title, rows) => {
+    const keys = rows.map((f) => f.key);
+    const stands = rows.reduce((s, f) => s + (f.vydels || 0), 0);
+    const on = keys.every((k) => picked.has(k));
+    const el = document.createElement('div');
+    el.className = `row ${cls}${on ? ' on' : ''}`;
+    // the count column means the same thing on every row: stands, not rows
+    el.innerHTML = `<span class="nm">${esc(title)}</span><span class="n">${fmt(stands)}</span>`;
+    el.title = t('list.pickGroup');
+    el.addEventListener('click', () => onPick(keys, !on));
+    return el;
+  };
+
+  for (const f of visible) {
     shown += 1;
 
-    const group = `${f.oblast || '—'} · ${f.uchrezhdenie || '—'}`;
-    if (group !== lastGroup) {
-      lastGroup = group;
-      const h = document.createElement('div');
-      h.className = 'row head';
-      h.textContent = group;
-      frag.appendChild(h);
+    if (f.oblast !== lastOblast) {
+      lastOblast = f.oblast;
+      lastGroup = NONE;
+      frag.appendChild(header('head oblast', f.oblast || '—',
+        keysWhere((x) => x.oblast === f.oblast)));
+    }
+    if (f.uchrezhdenie !== lastGroup) {
+      lastGroup = f.uchrezhdenie;
+      frag.appendChild(header('head', f.uchrezhdenie || '—',
+        keysWhere((x) => x.oblast === f.oblast && x.uchrezhdenie === f.uchrezhdenie)));
     }
 
     const el = document.createElement('div');
     el.className = `row${picked.has(f.key) ? ' on' : ''}`;
     el.dataset.key = f.key;
     el.innerHTML = `<span class="nm">${esc(f.name)}</span><span class="n">${fmt(f.vydels)}</span>`;
-    el.addEventListener('click', () => onToggle(f.key, el));
+    el.addEventListener('click', () => onPick([f.key], !picked.has(f.key)));
     frag.appendChild(el);
   }
 
+  // A pick rebuilds the list, and a rebuilt list starts at the top; picking a
+  // forestry halfway down would throw the user back to the first region.
+  const scroll = box.scrollTop;
   box.innerHTML = '';
   box.appendChild(frag);
+  box.scrollTop = scroll;
   return shown;
 }
 
@@ -112,13 +147,15 @@ function dataFilters() {
 }
 
 function renderDataList() {
-  renderList($('dList'), state.data.picked, (key, el) => {
-    if (state.data.picked.has(key)) state.data.picked.delete(key);
-    else state.data.picked.add(key);
-    el.classList.toggle('on');
+  renderList($('dList'), state.data.picked, (keys, on) => {
+    for (const k of keys) {
+      if (on) state.data.picked.add(k);
+      else state.data.picked.delete(k);
+    }
     $('dPicked').textContent = state.data.picked.size
       ? t('list.picked', { n: state.data.picked.size }) : t('list.all');
     state.data.page = 0;
+    renderDataList();
     loadRows();
   }, $('dSearch').value);
 }
@@ -336,24 +373,42 @@ $('dSqlTables').addEventListener('change', (e) => {
 /* ================================================================ EXPORT */
 
 function renderExpList() {
-  renderList($('eList'), state.exp.picked, (key, el) => {
-    if (state.exp.picked.has(key)) state.exp.picked.delete(key);
-    else state.exp.picked.add(key);
-    el.classList.toggle('on');
+  renderList($('eList'), state.exp.picked, (keys, on) => {
+    for (const k of keys) {
+      if (on) state.exp.picked.add(k);
+      else state.exp.picked.delete(k);
+    }
+    renderExpList();
     renderPicked();
     refreshPreview();
   }, $('eSearch').value);
 }
 
+const TAG_LIMIT = 12;
+
 function renderPicked() {
   const byKey = new Map(state.forestries.map((f) => [f.key, f]));
   // the empty-state text lives in the attribute: the stylesheet knows no language
   $('ePicked').dataset.empty = t('export.nothingPicked');
-  $('ePicked').innerHTML = [...state.exp.picked].map((k) => {
+
+  const keys = [...state.exp.picked];
+  const tag = (k) => {
     const f = byKey.get(k);
     return `<span class="tag" data-key="${k}"><b>${esc(f?.name || k)}</b>
       <span class="n">${fmt(f?.vydels || 0)}</span><span class="x">×</span></span>`;
-  }).join('');
+  };
+
+  // A whole region is fifty forestries; fifty chips are a wall, not a list
+  if (keys.length > TAG_LIMIT) {
+    const stands = keys.reduce((s, k) => s + (byKey.get(k)?.vydels || 0), 0);
+    const regions = [...new Set(keys.map((k) => byKey.get(k)?.oblast).filter(Boolean))];
+    $('ePicked').innerHTML = `<span class="tag summary"><b>${t('export.pickedMany', { n: keys.length })}</b>
+      <span class="n">${fmt(stands)}</span></span>`
+      + regions.slice(0, 3).map((r) => `<span class="tag quiet">${esc(r)}</span>`).join('')
+      + (regions.length > 3 ? `<span class="tag quiet">+${regions.length - 3}</span>` : '');
+    return;
+  }
+  $('ePicked').innerHTML = keys.map(tag).join('');
 }
 
 $('ePicked').addEventListener('click', (e) => {
@@ -384,13 +439,23 @@ function renderOptions() {
   $('eHint').textContent = ex ? t(ex.hint) : '';
   const o = state.exp.options;
 
-  const checks = ex.options.filter((x) => x.type === 'bool');
-  const rest = ex.options.filter((x) => x.type !== 'bool');
+  // Grouped by type rather than by position in the list: the layout should
+  // not shift when a format gains one more option.
+  const of = (...types) => ex.options.filter((x) => types.includes(x.type));
 
   const field = (x) => {
     if (x.type === 'select') {
       return `<label class="inline">${esc(t(x.label))}<select data-k="${x.key}">${
         x.choices.map((c) => `<option value="${esc(c.value)}"${o[x.key] === c.value ? ' selected' : ''}>${esc(t(c.label))}</option>`).join('')}</select></label>`;
+    }
+    if (x.type === 'text') {
+      // the stand template only bites in «custom» mode; greyed out is clearer
+      // than hidden, since it shows what the mode would use
+      const off = x.key === 'labelTemplate' && o.labelFormat !== 'custom';
+      return `<label class="inline wide${off ? ' dim' : ''}">${esc(t(x.label))}<input type="text"
+        data-k="${x.key}" value="${esc(o[x.key] ?? '')}" spellcheck="false"
+        maxlength="${x.max ?? 200}"${off ? ' disabled' : ''}
+        placeholder="${esc(x.placeholder ? t(x.placeholder) : '')}"></label>`;
     }
     if (x.type === 'color') {
       return `<label class="inline">${esc(t(x.label))}<input type="color" data-k="${x.key}" value="${esc(o[x.key])}"></label>`;
@@ -399,14 +464,26 @@ function renderOptions() {
       ${x.min != null ? `min="${x.min}"` : ''} ${x.max != null ? `max="${x.max}"` : ''} ${x.step ? `step="${x.step}"` : ''}></label>`;
   };
 
-  $('eOpts').innerHTML = `<div class="opt-row">${rest.slice(0, 2).map(field).join('')}</div>`
-    + `<div class="opt-row opt-checks">${checks.map((x) => `<label><input type="checkbox" data-k="${x.key}"${o[x.key] ? ' checked' : ''}> ${esc(t(x.label))}</label>`).join('')}</div>`
-    + `<div class="opt-row">${rest.slice(2).map(field).join('')}</div>`;
+  const texts = of('text');
+  // the list of placeholders comes from the format itself, so the hint cannot
+  // drift away from what the templates actually understand
+  const withHint = texts.find((x) => x.hint);
+  const hint = withHint
+    ? t(withHint.hint, { fields: (withHint.fields || []).map((f) => `{${f}}`).join(' ') })
+    : '';
+
+  $('eOpts').innerHTML = `<div class="opt-row">${of('select').map(field).join('')}</div>`
+    + `<div class="opt-row opt-checks">${of('bool').map((x) => `<label><input type="checkbox" data-k="${x.key}"${o[x.key] ? ' checked' : ''}> ${esc(t(x.label))}</label>`).join('')}</div>`
+    + (texts.length ? `<div class="opt-row">${texts.map(field).join('')}</div>` : '')
+    + (hint ? `<p class="hint">${esc(hint)}</p>` : '')
+    + `<div class="opt-row">${of('color', 'number').map(field).join('')}</div>`;
 
   $('eOpts').querySelectorAll('[data-k]').forEach((el) => {
     el.addEventListener('input', () => {
       const k = el.dataset.k;
       o[k] = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? Number(el.value) : el.value);
+      // switching the label mode enables or greys out the template field
+      if (k === 'labelFormat') renderOptions();
       drawPreview();
       refreshPreview();
     });
@@ -452,28 +529,86 @@ function drawPreview() {
     if (fill > 0) { ctx.globalAlpha = fill; ctx.fillStyle = color; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
     ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.strokeRect(x, y, w, h);
   };
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 2; j++) box(70 + i * 140, 30 + j * 38, 130, 34, o.vdColor, o.vdWidth, o.vdFill);
+
+  // The preview shows what the file will actually hold: a layer switched off
+  // disappears here too, and the labels are drawn through the same template.
+  if (o.vdPoly) {
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 2; j++) box(70 + i * 140, 30 + j * 38, 130, 34, o.vdColor, o.vdWidth, o.vdFill);
+    }
   }
-  box(65, 25, 420, 82, o.kvColor, o.kvWidth, 0);
-  box(45, 12, 460, 106, o.lesColor, o.lesWidth, 0);
-  ctx.fillStyle = o.vdColor; ctx.font = '11px sans-serif';
-  ctx.fillText('7', 130, 50); ctx.fillText('12', 270, 50); ctx.fillText('3', 410, 50);
-  ctx.fillStyle = o.kvColor; ctx.font = 'bold 12px sans-serif';
-  ctx.fillText(getLang() === 'ru' ? 'КВ-29' : 'BL-29', 230, 20);
+  if (o.kvPoly) box(65, 25, 420, 82, o.kvColor, o.kvWidth, 0);
+  if (o.outline) box(45, 12, 460, 106, o.lesColor, o.lesWidth, 0);
+
+  if (o.vdLabels) {
+    ctx.fillStyle = o.vdColor; ctx.font = '11px sans-serif';
+    [7, 12, 3].forEach((vd, i) => {
+      ctx.fillText(sampleLabel(vd), 110 + i * 140, 50);
+    });
+  }
+  if (o.kvLabels) {
+    ctx.fillStyle = o.kvColor; ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(sampleKvLabel(), 230, 20);
+  }
 }
 
+/** A stand label as the current settings would write it, for the preview. */
+function sampleLabel(vd) {
+  const o = state.exp.options;
+  // every placeholder the hint offers has a value here, or a working
+  // template would look broken in the preview
+  const sample = {
+    kv: 29, vd, ploshad: 4.2, poroda: 'Сосна', bonitet: '2', tip: 'С3',
+    katzem: 'Покрытые лесом', les: 'Каскеленское', obl: 'Алматинская',
+  };
+  if (o.labelFormat === 'custom') return fillTemplate(o.labelTemplate || '{vd}', sample);
+  if (o.labelFormat === 'kv-vd') return `${sample.kv}-${vd}`;
+  if (o.labelFormat === 'full') return t('preview.full', { kv: sample.kv, vd });
+  return String(vd);
+}
+
+function sampleKvLabel() {
+  const o = state.exp.options;
+  if (o.kvLabelTemplate) return fillTemplate(o.kvLabelTemplate, { kv: 29 });
+  return `${getLang() === 'en' ? 'BL' : 'КВ'}-29`;
+}
+
+/** Same substitution the exporter does, kept here only for the preview. */
+const fillTemplate = (tpl, v) => String(tpl)
+  .replace(/\{(\w+)\}/g, (m, k) => (v[k] === undefined ? '' : String(v[k])))
+  .replace(/\s+/g, ' ').trim();
+
+/**
+ * Estimates are asked for on every keystroke and answered out of order, so
+ * each run takes a ticket and a late answer is dropped. Without it a request
+ * still in flight when the last layer is switched off comes back and enables
+ * the Run button again — on a selection that would write an empty file.
+ */
+let previewRun = 0;
+
 const refreshPreview = debounce(async () => {
+  const o = state.exp.options;
+  const seq = ++previewRun;
   if (state.exp.picked.size === 0 && !state.exp.sql) {
     $('eLine').dataset.vydels = 0;
     $('eLine').textContent = t('export.pickLeft');
     $('eRun').disabled = true;
     return;
   }
+  // Every layer switched off would write a file with nothing in it
+  if (!o.vdPoly && !o.vdLabels && !o.kvPoly && !o.kvLabels && !o.outline) {
+    $('eLine').dataset.vydels = 0;
+    $('eLine').textContent = t('export.nothingToDraw');
+    $('eRun').disabled = true;
+    return;
+  }
   $('eLine').textContent = t('export.counting');
   let p;
   try { p = await call(window.api.exportData.preview(expFilters(), state.exp.options), t('tab.export')); } catch { return; }
+  if (seq !== previewRun) return;   // a newer run has already answered
   $('eLine').dataset.vydels = p.vydels;
+  $('eLine').dataset.vertices = p.vertices;
+  $('eLine').dataset.files = p.estimatedFiles;
   $('eLine').innerHTML = p.vydels === 0
     ? t('export.nothingMatches')
     : t('export.estimate', {

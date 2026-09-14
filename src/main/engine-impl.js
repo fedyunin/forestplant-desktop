@@ -72,7 +72,9 @@ const METHODS = {
   preview: ({ filters, options }) => {
     const o = sanitizeOptions('kml', options || {});
     return q.preview(filters, {
-      budget: o.budget, labels: o.labels, split: o.split, kvartaly: o.kvartaly,
+      budget: o.budget, split: o.split,
+      vdPoly: o.vdPoly, vdLabels: o.vdLabels,
+      kvPoly: o.kvPoly, kvLabels: o.kvLabels, outline: o.outline,
     });
   },
   runExport: ({ id, filters, options, outDir, lang }) => {

@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { kmlColor, buildKml, buildKmlSet, planChunks, buildIndexKml } from '../src/core/kml.js';
+import {
+  kmlColor, buildKml, buildKmlSet, planChunks, buildIndexKml, renderLabel,
+} from '../src/core/kml.js';
 import { countVertices } from '../src/core/geometry.js';
 
 const poly = (x, y, n = 5) => {
@@ -86,17 +88,116 @@ test('service keys do not leak into the balloon', () => {
   assert.ok(xml.includes('Сосна'), 'useful attributes must stay');
 });
 
-test('without labels there are no label folders', () => {
-  const xml = buildKml({ name: 'Т', vydels: [vydel(1, 2)], kvartaly: [], labels: false });
-  assert.ok(!xml.includes('Подписи выделов'));
-  assert.ok(xml.includes('Выделы'));
+test('each layer can be left out on its own', () => {
+  const opts = {
+    name: 'Т',
+    vydels: [vydel(1, 2)],
+    kvartaly: [{ properties: {}, geometry: poly(0, 0, 6), kvartal: 1 }],
+    outline: poly(0, 0, 8),
+  };
+  const has = (xml, folder) => xml.includes(`<name>${folder}</name>`);
+
+  const all = buildKml(opts);
+  for (const f of ['Границы лесничества', 'Кварталы', 'Подписи кварталов', 'Выделы', 'Подписи выделов']) {
+    assert.ok(has(all, f), `${f} is missing with everything on`);
+  }
+
+  const noVdLabels = buildKml({ ...opts, vdLabels: false });
+  assert.ok(!has(noVdLabels, 'Подписи выделов'));
+  assert.ok(has(noVdLabels, 'Выделы'));
+
+  const noVdPoly = buildKml({ ...opts, vdPoly: false });
+  assert.ok(!has(noVdPoly, 'Выделы'), 'the stand polygons should be gone');
+  assert.ok(has(noVdPoly, 'Подписи выделов'), 'the labels should stay');
+
+  const noBlocks = buildKml({ ...opts, kvPoly: false, kvLabels: false });
+  assert.ok(!has(noBlocks, 'Кварталы'));
+  assert.ok(!has(noBlocks, 'Подписи кварталов'));
+  assert.ok(has(noBlocks, 'Границы лесничества'), 'the outline is a layer of its own');
+
+  const labelsOnly = buildKml({ ...opts, vdPoly: false, kvPoly: false, outline: null });
+  assert.ok(!labelsOnly.includes('<Polygon>'), 'a labels-only file holds no polygons');
+  assert.ok(labelsOnly.includes('<Point>'));
+});
+
+test('a switched-off layer weighs nothing in the split', () => {
+  const vydels = Array.from({ length: 60 }, (_, i) => vydel(1, i, i, 0, 20));
+  const budget = 300;
+
+  const full = planChunks({ vydels, budget });
+  assert.ok(full.chunks.length > 1, 'polygons plus labels do not fit one file');
+
+  // labels alone are one vertex each: 60 of them fit into a 300 budget
+  const labelsOnly = planChunks({ vydels, budget, vdPoly: false });
+  assert.equal(labelsOnly.chunks.length, 1);
+
+  // the blocks are the fixed weight of the first part; switched off, that
+  // weight disappears and the first part takes more stands
+  const kvartaly = Array.from({ length: 3 }, (_, i) => ({
+    properties: {}, geometry: poly(i, 0, 100), kvartal: i,
+  }));
+  const withBlocks = planChunks({ vydels, kvartaly, budget: 1000 });
+  const without = planChunks({ vydels, kvartaly, budget: 1000, kvPoly: false, kvLabels: false });
+  assert.ok(withBlocks.fixed > 300, 'three blocks of 101 vertices weigh something');
+  assert.equal(without.fixed, 0);
+  assert.ok(without.chunks[0].length > withBlocks.chunks[0].length,
+    'the first part should hold more stands once the blocks are gone');
+});
+
+test('a blocks-only export writes no empty part', () => {
+  // Both stand layers off and heavy blocks: the stands used to still claim a
+  // chunk of their own, and the set came out as two files, the second holding
+  // nothing but the KML header.
+  const vydels = Array.from({ length: 30 }, (_, i) => vydel(1, i, i, 0, 20));
+  const kvartaly = Array.from({ length: 8 }, (_, i) => ({
+    properties: {}, geometry: poly(i, 0, 100), kvartal: i,
+  }));
+  const parts = buildKmlSet({
+    name: 'Т', vydels, kvartaly, budget: 1000, vdPoly: false, vdLabels: false,
+  });
+  assert.equal(parts.length, 1, 'only the blocks part should be written');
+  assert.equal(parts[0].suffix, '', 'a single part carries no «part 1 of 2»');
+  assert.ok(parts[0].content.includes('<name>Кварталы</name>'));
+  assert.ok(!parts[0].content.includes('<name>Выделы</name>'));
+});
+
+test('a label template fills the canonical fields', () => {
+  const f = {
+    kvartal: 29,
+    vydel: 5,
+    canon: { ploshad: 4.2, poroda: 'Сосна', bonitet: '2', tip_lesa: 'СХ', kat_zem: 'Лесные', lesnichestvo: 'Каскеленское', oblast: 'Алматинская' },
+  };
+  assert.equal(renderLabel('{kv}-{vd}', f), '29-5');
+  assert.equal(renderLabel('выд {vd} · {poroda} · {ploshad} га', f), 'выд 5 · Сосна · 4.2 га');
+  assert.equal(renderLabel('{les}, {obl}', f), 'Каскеленское, Алматинская');
+
+  // a missing value leaves no trace: «кв 29 выд {poroda}» in a file would
+  // read as a broken export rather than as data the source does not have
+  assert.equal(renderLabel('{vd} {poroda}', { kvartal: 1, vydel: 7, canon: {} }), '7');
+  assert.equal(renderLabel('{vd} {nosuchfield}', f), '5');
+  assert.equal(renderLabel('без полей', f), 'без полей');
+});
+
+test('the custom template reaches the file', () => {
+  const v = vydel(29, 5);
+  v.canon = { poroda: 'Сосна' };
+  const xml = buildKml({
+    name: 'Т',
+    vydels: [v],
+    kvartaly: [{ properties: {}, geometry: poly(0, 0, 6), kvartal: 29 }],
+    labelFormat: 'custom',
+    labelTemplate: '{kv}/{vd} {poroda}',
+    kvLabelTemplate: 'кв. {kv}',
+  });
+  assert.ok(xml.includes('<name>29/5 Сосна</name>'), 'the stand template was not applied');
+  assert.ok(xml.includes('<name>кв. 29</name>'), 'the block template was not applied');
 });
 
 test('splitting stays within the vertex budget', () => {
   // 60 shapes of 21 vertices each, plus one vertex per label
   const vydels = Array.from({ length: 60 }, (_, i) => vydel(1, i, i, 0, 20));
   const budget = 300;
-  const { chunks } = planChunks({ vydels, kvartaly: [], outline: null, labels: true, budget });
+  const { chunks } = planChunks({ vydels, kvartaly: [], outline: null, budget });
   assert.ok(chunks.length > 1, 'it should split');
   for (const c of chunks) {
     const v = c.reduce((s, f) => s + countVertices(f.geometry) + 1, 0);

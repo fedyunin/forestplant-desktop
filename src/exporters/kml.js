@@ -9,7 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { buildKmlSet, buildIndexKml, DEFAULT_STYLE, VERTEX_BUDGET } from '../core/kml.js';
+import {
+  buildKmlSet, buildIndexKml, DEFAULT_STYLE, VERTEX_BUDGET, LABEL_FIELDS,
+} from '../core/kml.js';
 
 const TEXT = {
   ru: {
@@ -53,11 +55,21 @@ export default {
         { value: 'vydel', label: 'opt.labelFormat.vydel' },
         { value: 'kv-vd', label: 'opt.labelFormat.kvvd' },
         { value: 'full', label: 'opt.labelFormat.full' },
+        { value: 'custom', label: 'opt.labelFormat.custom' },
       ] },
-    { key: 'labels', type: 'bool', label: 'opt.labels', value: true },
-    { key: 'kvartaly', type: 'bool', label: 'opt.kvartaly', value: true },
+    // Each layer is separate: a whole region with everything on takes minutes
+    // to open in Google Earth, and an overview map needs none of it.
+    { key: 'vdPoly', type: 'bool', label: 'opt.vdPoly', value: true },
+    { key: 'vdLabels', type: 'bool', label: 'opt.vdLabels', value: true },
+    { key: 'kvPoly', type: 'bool', label: 'opt.kvPoly', value: true },
+    { key: 'kvLabels', type: 'bool', label: 'opt.kvLabels', value: true },
     { key: 'outline', type: 'bool', label: 'opt.outline', value: true },
     { key: 'index', type: 'bool', label: 'opt.index', value: true },
+    { key: 'labelTemplate', type: 'text', label: 'opt.labelTemplate', value: '{kv}-{vd}',
+      placeholder: 'opt.labelTemplate.ph', hint: 'opt.template.hint',
+      fields: LABEL_FIELDS, max: 200 },
+    { key: 'kvLabelTemplate', type: 'text', label: 'opt.kvLabelTemplate', value: '',
+      placeholder: 'opt.kvLabelTemplate.ph', max: 200 },
     { key: 'budget', type: 'number', label: 'opt.budget',
       // Google Earth refuses more than 250 000 vertices; a label is a point too
       value: VERTEX_BUDGET, min: 10000, max: 250000, step: 10000 },
@@ -94,7 +106,9 @@ export default {
     let done = 0;
 
     for (const g of groups) {
-      const { vydels, kvartaly } = data.rows(g, { kvartaly: o.kvartaly });
+      // the blocks are read only when at least one of their layers is wanted
+      const wantKvartaly = o.kvPoly || o.kvLabels;
+      const { vydels, kvartaly } = data.rows(g, { kvartaly: wantKvartaly });
       done += 1;
       if (vydels.length === 0) continue;
 
@@ -104,8 +118,12 @@ export default {
 
       for (const part of buildKmlSet({
         name, vydels, kvartaly,
-        labelFormat: o.labelFormat, labels: o.labels, style,
-        outline: o.outline, budget: o.budget, stats, lang,
+        labelFormat: o.labelFormat,
+        labelTemplate: o.labelTemplate,
+        kvLabelTemplate: o.kvLabelTemplate,
+        vdPoly: o.vdPoly, vdLabels: o.vdLabels,
+        kvPoly: o.kvPoly, kvLabels: o.kvLabels,
+        style, outline: o.outline, budget: o.budget, stats, lang,
       })) {
         const file = path.join(dir, `${safe(g.lesnichestvo, T.selectionFile)}${part.suffix.replace(/ /g, '_')}.kml`);
         fs.writeFileSync(file, part.content, 'utf8');

@@ -120,9 +120,14 @@ changes both rest on it.
 area, species and land category, an object card with the raw attributes, and
 SQL as a second way of building the same selection.
 
-**Export** — search over the forestries, colours and line widths with a
+**Export** — search over the forestries, with the region and agency rows
+pickable themselves: one click takes a whole region. Five layers — stand
+polygons, stand labels, block polygons, block labels, forestry outline —
+switch on and off separately, because an overview map of a region needs none
+of the detail and loads in seconds without it. Labels follow a preset or a
+template of your own (`{kv}-{vd} {poroda}`). Colours and line widths have a
 preview, and an estimate of «how many stands, how many vertices, how many
-files» before the run.
+files» comes before the run and follows the switches.
 
 **Settings** — the data folder, credentials, database management (checking for
 updates by layer fingerprints without downloading, fetching changes, retrying

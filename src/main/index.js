@@ -269,6 +269,78 @@ async function runSmoke(w) {
     check('selection estimate', ex.vydels > 0, ex.line.slice(0, 60));
     check('export button', ex.btn);
 
+    // One click on a region header has to take the whole region — the reason
+    // the header rows became pickable at all.
+    const region = await js(`(async () => {
+      document.getElementById('eClear').click();
+      await new Promise(r => setTimeout(r, 400));
+      const head = document.querySelector('#eList .row.head.oblast');
+      const region = head.querySelector('.nm').textContent;
+      head.click();
+      await new Promise(r => setTimeout(r, 1500));
+      const line = document.getElementById('eLine');
+      // the list is rebuilt on a pick, so the header has to be read again
+      const after = document.querySelector('#eList .row.head.oblast');
+      return { region, on: after.classList.contains('on'),
+               tags: document.querySelectorAll('#ePicked .tag').length,
+               vydels: Number(line.dataset.vydels || 0),
+               files: Number(line.dataset.files || 0) };
+    })()`);
+    check('a region picked in one click', region.vydels > 10000 && region.on,
+      `${region.region}: ${region.vydels} stands, ${region.files} files`);
+    check('many forestries fold into a summary', region.tags > 0 && region.tags < 6,
+      `${region.tags} chips`);
+
+    // Switching a layer off must lighten the file, not just hide something:
+    // the estimate is what tells the user it worked.
+    const layers = await js(`(async () => {
+      const line = document.getElementById('eLine');
+      const set = (k, v) => {
+        const el = document.querySelector('#eOpts [data-k="' + k + '"]');
+        el.checked = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const read = () => ({ vertices: Number(line.dataset.vertices || 0), files: Number(line.dataset.files || 0) });
+      const before = read();
+      set('vdPoly', false);
+      await new Promise(r => setTimeout(r, 1500));
+      const labelsOnly = read();
+      set('vdLabels', false); set('kvPoly', false); set('kvLabels', false);
+      const outline = document.querySelector('#eOpts [data-k="outline"]');
+      outline.checked = false; outline.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1200));
+      const empty = { text: line.textContent, disabled: document.getElementById('eRun').disabled };
+      set('vdPoly', true); set('vdLabels', true); set('kvPoly', true); set('kvLabels', true);
+      outline.checked = true; outline.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1500));
+      return { before, labelsOnly, empty, after: read() };
+    })()`);
+    check('switching off the stand polygons lightens the file',
+      layers.labelsOnly.vertices > 0 && layers.labelsOnly.vertices < layers.before.vertices / 10,
+      `${layers.before.vertices} → ${layers.labelsOnly.vertices} vertices, `
+      + `${layers.before.files} → ${layers.labelsOnly.files} files`);
+    check('with every layer off the export is refused', layers.empty.disabled,
+      layers.empty.text.slice(0, 60));
+    check('the estimate comes back when the layers do',
+      layers.after.vertices === layers.before.vertices,
+      `${layers.after.vertices} vertices`);
+
+    // The custom template field is only live in «custom» mode
+    const tpl = await js(`(async () => {
+      const sel = document.querySelector('#eOpts [data-k="labelFormat"]');
+      const input = () => document.querySelector('#eOpts [data-k="labelTemplate"]');
+      const offByDefault = input().disabled;
+      sel.value = 'custom'; sel.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 600));
+      const el = input();
+      el.value = '{kv}/{vd} {poroda}';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 800));
+      return { offByDefault, live: !el.disabled, value: el.value };
+    })()`);
+    check('the label template follows the mode', tpl.offByDefault && tpl.live,
+      `disabled by default: ${tpl.offByDefault}, live in custom mode: ${tpl.live}`);
+
     // We wait on the fact rather than on a timer: in the packaged application
     // the first calls are colder, and a fixed pause was sometimes too short.
     const st = await js(`(async () => {

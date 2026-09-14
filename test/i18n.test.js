@@ -90,5 +90,5 @@ test('the exported file speaks Kazakh when asked', () => {
     }],
   });
   assert.ok(xml.includes('<name>Бөліктер</name>'), 'the stand folder is not in Kazakh');
-  assert.ok(xml.includes('<name>кв 29 бөл 5</name>'), 'the stand label is not in Kazakh');
+  assert.ok(xml.includes('<name>29-квартал 5-бөлік</name>'), 'the stand label is not in Kazakh');
 });

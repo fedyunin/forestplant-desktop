@@ -50,6 +50,10 @@ export function sanitizeOptions(id, raw = {}) {
       out[o.key] = Boolean(v);
     } else if (o.type === 'select') {
       out[o.key] = o.choices.some((c) => c.value === v) ? v : o.value;
+    } else if (o.type === 'text') {
+      // A label template is free text from the window; length is the only
+      // thing worth bounding, the placeholders are resolved by the renderer.
+      out[o.key] = String(v).slice(0, o.max ?? 200);
     } else {
       out[o.key] = String(v);
     }

@@ -37,8 +37,7 @@ const TEXT = {
     kvLabels: 'Подписи кварталов',
     vydely: 'Выделы',
     vdLabels: 'Подписи выделов',
-    kv: 'кв',
-    vd: 'выд',
+    full: (kv, vd) => `кв ${kv} выд ${vd}`,
     kvPrefix: 'КВ',
     part: (i, n) => ` (часть ${i} из ${n})`,
   },
@@ -48,8 +47,7 @@ const TEXT = {
     kvLabels: 'Block labels',
     vydely: 'Stands',
     vdLabels: 'Stand labels',
-    kv: 'block',
-    vd: 'stand',
+    full: (kv, vd) => `block ${kv} stand ${vd}`,
     kvPrefix: 'BL',
     part: (i, n) => ` (part ${i} of ${n})`,
   },
@@ -59,8 +57,7 @@ const TEXT = {
     kvLabels: 'Квартал жазулары',
     vydely: 'Бөліктер',
     vdLabels: 'Бөлік жазулары',
-    kv: 'кв',
-    vd: 'бөл',
+    full: (kv, vd) => `${kv}-квартал ${vd}-бөлік`,
     kvPrefix: 'КВ',
     part: (i, n) => ` (${n} бөліктің ${i}-сі)`,
   },
@@ -174,24 +171,77 @@ function folder(name, body) {
   return `<Folder><name>${esc(name)}</name><open>0</open><visibility>1</visibility>\n${body.join('\n')}\n</Folder>`;
 }
 
-/** Label text of a stand. */
-function vydelLabel(kv, vd, format, T) {
-  if (kv === null && vd === null) return '';
-  if (format === 'full') return `${T.kv} ${kv} ${T.vd} ${vd}`;
-  if (format === 'kv-vd') return `${kv}-${vd}`;
-  return String(vd);
+/**
+ * Placeholders a label template may use.
+ *
+ * The values come from the canonical columns, never from the raw attributes:
+ * field names differ between regions, so a template written against one
+ * region's spelling would silently produce empty labels in another.
+ */
+export const LABEL_FIELDS = ['kv', 'vd', 'ploshad', 'poroda', 'bonitet', 'tip', 'katzem', 'les', 'obl'];
+
+const valueOf = (f, key) => {
+  const c = f.canon || {};
+  switch (key) {
+    case 'kv': return f.kvartal;
+    case 'vd': return f.vydel;
+    case 'ploshad': return c.ploshad;
+    case 'poroda': return c.poroda;
+    case 'bonitet': return c.bonitet;
+    case 'tip': return c.tip_lesa;
+    case 'katzem': return c.kat_zem;
+    case 'les': return c.lesnichestvo;
+    case 'obl': return c.oblast;
+    default: return undefined;
+  }
+};
+
+/**
+ * Render a label from a template such as `{kv}-{vd}` or `выд {vd} {poroda}`.
+ *
+ * An unknown or empty placeholder becomes an empty string rather than the
+ * literal `{x}`: a label reading «кв 29 выд {poroda}» on a stand with no
+ * species would look like a bug in the file, not like missing data.
+ */
+export function renderLabel(template, f) {
+  return String(template).replace(/\{(\w+)\}/g, (m, key) => {
+    const v = valueOf(f, key);
+    return v === null || v === undefined ? '' : String(v);
+  }).replace(/\s+/g, ' ').trim();
+}
+
+/** Label text of a stand: a preset, or the user's own template. */
+function vydelLabel(f, format, template, T) {
+  if (format === 'custom') {
+    // A template over a stand with no numbers renders as «-» and other such
+    // punctuation; nothing readable came out, so nothing is written.
+    const s = renderLabel(template || '{vd}', f);
+    return /[\p{L}\p{N}]/u.test(s) ? s : '';
+  }
+  if (f.kvartal === null && f.vydel === null) return '';
+  if (format === 'full') return T.full(f.kvartal, f.vydel);
+  if (format === 'kv-vd') return `${f.kvartal}-${f.vydel}`;
+  return String(f.vydel);
 }
 
 /**
  * A single KML document.
- * Objects are {properties, geometry, kvartal, vydel}; the numbers come from
- * the canonical fields rather than from props: field names differ between
- * regions, and when several regions merge into one file the roles of one
- * layer would mislabel everything else.
+ *
+ * Objects are {properties, geometry, kvartal, vydel, canon}; the numbers and
+ * the label values come from the canonical fields rather than from props:
+ * field names differ between regions, and when several regions merge into one
+ * file the roles of one layer would mislabel everything else.
+ *
+ * Each of the five layers can be left out. A whole region with labels on is
+ * tens of megabytes and minutes of loading in Google Earth; with the stand
+ * labels and blocks dropped the same selection opens at once, which is what
+ * an overview map needs.
  */
 export function buildKml({
   name, vydels = [], kvartaly = [], outline = null,
-  labelFormat = 'vydel', labels = true, style = {}, stats = null, lang = 'ru',
+  labelFormat = 'vydel', labelTemplate = '', kvLabelTemplate = '',
+  vdPoly = true, vdLabels = true, kvPoly = true, kvLabels = true,
+  style = {}, stats = null, lang = 'ru',
 }) {
   const T = text(lang);
   const st = { ...DEFAULT_STYLE, ...style };
@@ -202,9 +252,13 @@ export function buildKml({
   }
 
   for (const f of kvartaly) {
-    const label = `${T.kvPrefix}-${f.kvartal}`;
-    polyK.push(`<Placemark><name>${esc(label)}</name><styleUrl>#kvartal</styleUrl><ExtendedData>${extData(f.properties)}</ExtendedData>${geomKml(f.geometry)}</Placemark>`);
-    if (labels) {
+    const label = kvLabelTemplate
+      ? renderLabel(kvLabelTemplate, f)
+      : `${T.kvPrefix}-${f.kvartal}`;
+    if (kvPoly) {
+      polyK.push(`<Placemark><name>${esc(label)}</name><styleUrl>#kvartal</styleUrl><ExtendedData>${extData(f.properties)}</ExtendedData>${geomKml(f.geometry)}</Placemark>`);
+    }
+    if (kvLabels) {
       const lp = labelPoint(f.geometry);
       if (lp) {
         lblK.push(`<Placemark><name>${esc(label)}</name><styleUrl>#lbl_kvartal</styleUrl><Point><coordinates>${lp.x.toFixed(8)},${lp.y.toFixed(8)},0</coordinates></Point></Placemark>`);
@@ -214,14 +268,20 @@ export function buildKml({
 
   let skippedGeom = 0;
   for (const f of vydels) {
-    const full = `${T.kv} ${f.kvartal} ${T.vd} ${f.vydel}`;
-    const g = geomKml(f.geometry);
-    if (!g) { skippedGeom += 1; continue; }   // broken geometry in the source data
-    polyV.push(`<Placemark><name>${esc(full)}</name><styleUrl>#vydel</styleUrl><description>${attrTable(f.properties)}</description><ExtendedData>${extData(f.properties)}</ExtendedData>${g}</Placemark>`);
-    if (labels) {
+    const full = T.full(f.kvartal, f.vydel);
+    const g = vdPoly ? geomKml(f.geometry) : '';
+    if (vdPoly && !g) { skippedGeom += 1; continue; }   // broken geometry in the source data
+    if (vdPoly) {
+      polyV.push(`<Placemark><name>${esc(full)}</name><styleUrl>#vydel</styleUrl><description>${attrTable(f.properties)}</description><ExtendedData>${extData(f.properties)}</ExtendedData>${g}</Placemark>`);
+    }
+    if (vdLabels) {
       const lp = labelPoint(f.geometry);
       if (lp) {
-        lblV.push(`<Placemark><name>${esc(vydelLabel(f.kvartal, f.vydel, labelFormat, T))}</name><styleUrl>#lbl_vydel</styleUrl><description>${attrTable(f.properties)}</description><Point><coordinates>${lp.x.toFixed(8)},${lp.y.toFixed(8)},0</coordinates></Point></Placemark>`);
+        lblV.push(`<Placemark><name>${esc(vydelLabel(f, labelFormat, labelTemplate, T))}</name><styleUrl>#lbl_vydel</styleUrl><description>${attrTable(f.properties)}</description><Point><coordinates>${lp.x.toFixed(8)},${lp.y.toFixed(8)},0</coordinates></Point></Placemark>`);
+      } else if (!vdPoly) {
+        // nothing at all came of this stand: in a labels-only file a broken
+        // geometry is just as lost, and has to be reported as skipped
+        skippedGeom += 1;
       }
     }
   }
@@ -251,10 +311,15 @@ export function buildKml({
  * Blocks and the outline go into the first part only — otherwise their
  * weight is counted again in every part.
  */
-export function planChunks({ vydels, kvartaly = [], outline = null, labels = true, budget = VERTEX_BUDGET }) {
-  const lbl = labels ? 1 : 0;
+export function planChunks({
+  vydels, kvartaly = [], outline = null, budget = VERTEX_BUDGET,
+  vdPoly = true, vdLabels = true, kvPoly = true, kvLabels = true,
+}) {
+  // What is switched off weighs nothing — that is the point of switching it
+  // off, and an estimate that ignored this would split files that fit.
+  const vdCost = (f) => (vdPoly ? countVertices(f.geometry) : 0) + (vdLabels ? 1 : 0);
   const fixed = countVertices(outline)
-    + kvartaly.reduce((s, f) => s + countVertices(f.geometry) + lbl, 0);
+    + kvartaly.reduce((s, f) => s + (kvPoly ? countVertices(f.geometry) : 0) + (kvLabels ? 1 : 0), 0);
 
   // Blocks plus the outline can weigh more than half the budget: at Iliyskoe
   // forestry they crowded out the stands so badly that the first part went
@@ -268,7 +333,7 @@ export function planChunks({ vydels, kvartaly = [], outline = null, labels = tru
   let cap = separateKvartaly ? budget : room;
 
   for (const f of vydels) {
-    const v = countVertices(f.geometry) + lbl;
+    const v = vdCost(f);
     if (cur.length && curN + v > cap) {
       chunks.push(cur);
       cur = []; curN = 0; cap = budget;
@@ -295,23 +360,41 @@ ${body}
 
 /** The complete set of files for one group (one forestry). */
 export function buildKmlSet({
-  name, vydels, kvartaly = [], labelFormat = 'vydel', labels = true,
+  name, vydels, kvartaly = [], labelFormat = 'vydel',
+  labelTemplate = '', kvLabelTemplate = '',
+  vdPoly = true, vdLabels = true, kvPoly = true, kvLabels = true,
   style = {}, outline = true, budget = VERTEX_BUDGET, stats = null, lang = 'ru',
 }) {
   const og = outline === true ? outlineOf(vydels, kvartaly) : (outline || null);
-  const { chunks, separateKvartaly } = planChunks({ vydels, kvartaly, outline: og, labels, budget });
+  const layers = { vdPoly, vdLabels, kvPoly, kvLabels };
+
+  // Objects whose every layer is off draw nothing, so they must not claim a
+  // part: with both stand layers off the stands used to take a file of their
+  // own that held only the KML header. The outline is still computed from the
+  // real stands — it is a layer of its own.
+  const stands = vdPoly || vdLabels ? vydels : [];
+  const blocks = kvPoly || kvLabels ? kvartaly : [];
+
+  const { chunks, separateKvartaly } = planChunks({
+    vydels: stands, kvartaly: blocks, outline: og, budget, ...layers,
+  });
 
   // Blocks either travel in the first part together with the stands, or alone
   const parts = separateKvartaly
-    ? [{ vydels: [], kvartaly, outline: og }, ...chunks.map((c) => ({ vydels: c, kvartaly: [], outline: null }))]
+    ? [{ vydels: [], kvartaly: blocks, outline: og }, ...chunks.map((c) => ({ vydels: c, kvartaly: [], outline: null }))]
     : chunks.map((c, i) => ({
       vydels: c,
-      kvartaly: i === 0 ? kvartaly : [],
+      kvartaly: i === 0 ? blocks : [],
       outline: i === 0 ? og : null,
     }));
 
-  const total = parts.length;
-  return parts.map((p, i) => {
+  // A part with nothing in it is still a file Google Earth has to open. With
+  // both stand layers off the stand chunk is empty, and without this the set
+  // came out as «part 1 of 2» plus a 1 KB file holding no placemarks at all.
+  const kept = parts.filter((p) => p.vydels.length || p.kvartaly.length || p.outline);
+
+  const total = kept.length;
+  return kept.map((p, i) => {
     const suffix = total === 1 ? '' : text(lang).part(i + 1, total);
     return {
       suffix,
@@ -321,7 +404,7 @@ export function buildKmlSet({
         vydels: p.vydels,
         kvartaly: p.kvartaly,
         outline: p.outline,
-        labelFormat, labels, style, stats, lang,
+        labelFormat, labelTemplate, kvLabelTemplate, ...layers, style, stats, lang,
       }),
       counts: { vydels: p.vydels.length, kvartaly: p.kvartaly.length },
     };

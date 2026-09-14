@@ -119,6 +119,31 @@ on a vertex budget (240 000 by default). Blocks and the forestry outline go
 into the first part only, so their weight is not counted again — and when they
 alone would crowd out the stands, they move into a file of their own.
 
+### What is switched off weighs nothing
+
+The five layers of a KML file — stand polygons, stand labels, block polygons,
+block labels, the forestry outline — are separate switches rather than one
+«labels» flag, because they cost wildly different amounts. One forestry with
+everything on is 14.7 MB and 229 421 vertices; the same selection as labels
+only is 3 MB and 1 730 vertices, and opens in Google Earth at once. A whole
+region is the case that made this necessary.
+
+The estimate and the splitting follow the switches. They have to: an estimate
+that counted polygons nobody asked for would split files that fit, and the
+number in front of the user would be wrong in the one direction that matters.
+
+### Label text is a template, not a menu of three
+
+Presets cover the common cases (`5`, `29-5`, `кв 29 выд 5`); a template covers
+the rest — `{kv}-{vd} {poroda} {ploshad}га` and so on. The placeholders read
+the canonical columns rather than the raw attributes: a template written
+against `Порода` would silently produce empty labels in the regions that spell
+the field `ПородаПП`, which is the same trap as the field roles.
+
+A placeholder with no value behind it becomes an empty string, not the literal
+`{poroda}` — a label reading «кв 29 выд {poroda}» in a delivered file looks
+like a broken export rather than like data the source does not have.
+
 ### The forestry boundary is computed, not taken ready
 
 There is no usable ready layer of forestry boundaries on the server: in
@@ -201,8 +226,10 @@ configs or logs.
    category, an object card with the raw attributes, and SQL as a second way of
    building the same selection: a query returning an id column narrows the
    selection exactly as the filters do.
-2. **Export** — search over the forestries, a style editor with a preview, the
-   vertex budget and splitting, an index file of links.
+2. **Export** — search over the forestries with the group rows pickable (a
+   whole region in one click), five layers that switch on and off separately,
+   label presets and templates, a style editor with a preview, the vertex
+   budget and splitting, an index file of links.
 3. **Settings** — the data folder, credentials, database management (checking
    for updates by fingerprints — count, max OBJECTID, max edit date — without
    downloading), the archive state and the field mapping screen. The interface

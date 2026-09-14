@@ -324,7 +324,10 @@ export function tables() {
 
 /* ---------------------------------------------------------------- selection */
 
-export function preview(filters, { budget = VERTEX_BUDGET, labels = true, split = 'lesnichestvo', kvartaly = true } = {}) {
+export function preview(filters, {
+  budget = VERTEX_BUDGET, split = 'lesnichestvo',
+  vdPoly = true, vdLabels = true, kvPoly = true, kvLabels = true, outline = true,
+} = {}) {
   const d = need();
   let groups;
 
@@ -355,29 +358,57 @@ export function preview(filters, { budget = VERTEX_BUDGET, labels = true, split 
     }
   }
 
+  // A switched-off layer costs nothing, so the estimate has to follow the
+  // switches: with the stand polygons off, a whole region fits one file.
+  // The blocks count too — with only the blocks left on, the estimate used to
+  // read «0 vertices» while the export still wrote every block polygon.
   let vydels = 0, vertices = 0, files = 0;
   for (const g of groups) {
-    const v = g.v + (labels ? g.n : 0);
+    const v = (vdPoly ? g.v : 0) + (vdLabels ? g.n : 0);
+    const fixed = (kvPoly ? (g.kvv || 0) : 0) + (kvLabels ? (g.kvn || 0) : 0);
     vydels += g.n;
-    vertices += v;
+    vertices += v + fixed;
     if (split !== 'lesnichestvo') continue;
-    const fixed = kvartaly ? (g.kvv || 0) + (labels ? (g.kvn || 0) : 0) : 0;
     const first = Math.max(budget - fixed, Math.floor(budget / 2));
     files += v <= first ? 1 : 1 + Math.ceil((v - first) / budget);
   }
-  if (split !== 'lesnichestvo') files = vydels === 0 ? 0 : Math.ceil(vertices / budget);
+  // One file still gets written when only the outline is on: it is computed at
+  // export time, so its weight is unknown here, but promising zero files and
+  // then writing one is worse than rounding up to one.
+  if (split !== 'lesnichestvo') {
+    const draws = vdPoly || vdLabels || kvPoly || kvLabels || outline;
+    files = groups.length === 0 || !draws ? 0 : Math.max(1, Math.ceil(vertices / budget));
+  }
 
   return { vydels, vertices, groups: groups.length, estimatedFiles: vydels === 0 ? 0 : files };
 }
 
 /* ---------------------------------------------------------------- export source */
 
+/**
+ * A row as an exporter sees it.
+ *
+ * `canon` carries the resolved columns so a label template can say {poroda}
+ * without knowing that the field is called Порода here and ПородаПП there.
+ */
 const rowToFeature = (r) => ({
   properties: JSON.parse(r.props),
   geometry: r.geom ? JSON.parse(r.geom) : null,
   kvartal: r.kvartal,
   vydel: r.vydel,
+  canon: {
+    ploshad: r.ploshad,
+    poroda: r.poroda,
+    bonitet: r.bonitet,
+    tip_lesa: r.tip_lesa,
+    kat_zem: r.kat_zem,
+    lesnichestvo: r.lesnichestvo,
+    oblast: r.oblast,
+  },
 });
+
+const FEATURE_COLUMNS = `feature.kvartal, feature.vydel, feature.ploshad, feature.poroda,
+  feature.bonitet, feature.tip_lesa, feature.kat_zem, feature.lesnichestvo, feature.oblast`;
 
 /**
  * The selection in a shape any exporter can use: a list of groups and a read
@@ -405,7 +436,7 @@ export function selection(filters) {
       const gJoin = group.layer_key ? '' : join;
 
       const vydels = d.prepare(
-        `SELECT fd.props, fd.geom, feature.kvartal, feature.vydel
+        `SELECT fd.props, fd.geom, ${FEATURE_COLUMNS}
          FROM feature${gJoin} JOIN feature_data fd ON fd.feature_id = feature.id
          WHERE ${gSql}`,
       ).all(...gParams).map(rowToFeature);
@@ -413,7 +444,8 @@ export function selection(filters) {
       if (!kvartaly) return { vydels, kvartaly: [] };
 
       const kv = d.prepare(`
-        SELECT k.id, fd.props, fd.geom, k.kvartal, k.vydel
+        SELECT k.id, fd.props, fd.geom, k.kvartal, k.vydel, k.ploshad, k.poroda,
+               k.bonitet, k.tip_lesa, k.kat_zem, k.lesnichestvo, k.oblast
         FROM kvartal_link l
         JOIN feature k ON k.id = l.feature_id
         JOIN feature_data fd ON fd.feature_id = k.id
