@@ -1,6 +1,6 @@
 {
   "name": "forestplant-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Export of forest fund data from the GIS forestplant.gharysh.kz into KML",
   "type": "module",
