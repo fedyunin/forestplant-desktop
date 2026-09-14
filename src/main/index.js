@@ -198,7 +198,7 @@ async function runSmoke(w) {
     const sqlPrev = await js(`(async () => {
       const shown = Number(document.getElementById('dSqlInfo').dataset.total || 0);
       const r = await window.api.exportData.preview(
-        { sql: document.getElementById('dSqlText').value }, {});
+        'kml', { sql: document.getElementById('dSqlText').value }, {});
       return { shown, est: r.ok ? r.data.vydels : -1 };
     })()`);
     check('estimate matches the SQL selection', sqlPrev.shown > 0 && sqlPrev.shown === sqlPrev.est,
@@ -340,6 +340,38 @@ async function runSmoke(w) {
     })()`);
     check('the label template follows the mode', tpl.offByDefault && tpl.live,
       `disabled by default: ${tpl.offByDefault}, live in custom mode: ${tpl.live}`);
+
+    // Every format brings its own settings and its own estimate; the window
+    // must follow whichever is chosen rather than keep showing KML's.
+    const formats = await js(`(async () => {
+      const sel = document.getElementById('eFormat');
+      const line = document.getElementById('eLine');
+      const out = { ids: [...sel.options].map(o => o.value) };
+      for (const id of ['geojson', 'csv']) {
+        sel.value = id; sel.dispatchEvent(new Event('change'));
+        await new Promise(r => setTimeout(r, 1800));
+        out[id] = {
+          opts: document.querySelectorAll('#eOpts [data-k]').length,
+          vydels: Number(line.dataset.vydels || 0),
+          vertices: Number(line.dataset.vertices || 0),
+          files: Number(line.dataset.files || 0),
+          run: !document.getElementById('eRun').disabled,
+        };
+      }
+      sel.value = 'kml'; sel.dispatchEvent(new Event('change'));
+      await new Promise(r => setTimeout(r, 1500));
+      out.back = Number(line.dataset.vertices || 0);
+      return out;
+    })()`);
+    check('three formats offered', formats.ids.join(',') === 'kml,geojson,csv',
+      formats.ids.join(', '));
+    check('GeoJSON counts geometry',
+      formats.geojson.vydels > 0 && formats.geojson.vertices > 0 && formats.geojson.run,
+      `${formats.geojson.vydels} stands, ${formats.geojson.vertices} vertices, ${formats.geojson.files} files`);
+    check('CSV counts rows rather than vertices',
+      formats.csv.vydels > 0 && formats.csv.vertices === 0 && formats.csv.files > 0,
+      `${formats.csv.vydels} rows, ${formats.csv.files} files, ${formats.csv.opts} settings`);
+    check('switching back restores the KML estimate', formats.back > 0, `${formats.back} vertices`);
 
     // We wait on the fact rather than on a timer: in the packaged application
     // the first calls are colder, and a fixed pause was sometimes too short.

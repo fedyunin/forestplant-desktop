@@ -10,16 +10,21 @@
  *   id       string identifier
  *   name     translation key of its name
  *   hint     translation key of a short explanation
+ *   estimate translation key of the line above the Export button
  *   options  description of the settings (type, label key, default value)
- *   run({ db, filters, options, outDir, onProgress }) -> { files, ... }
+ *   plan(options) -> what the estimate should count (see queries.preview)
+ *   run({ data, options, outDir, onProgress, lang }) -> { files, ... }
  */
 
 import kml from './kml.js';
+import geojson from './geojson.js';
+import csv from './csv.js';
 
-const REGISTRY = [kml];
+const REGISTRY = [kml, geojson, csv];
 
-export const exporters = () => REGISTRY.map(({ id, name, hint, options }) => ({
-  id, name, hint, options,
+// plan() and run() stay on this side: only what the window needs crosses IPC
+export const exporters = () => REGISTRY.map(({ id, name, hint, estimate, options }) => ({
+  id, name, hint, estimate, options,
 }));
 
 export function getExporter(id) {

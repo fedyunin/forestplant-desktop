@@ -107,8 +107,8 @@ export function registerHandlers(ipcMain, { getWindow, dialog, shell, log }) {
 
   ipcMain.handle('export:list', plain('exporters'));
 
-  ipcMain.handle('export:preview', ok((filters, options) => callEngine('preview', {
-    filters: sanitizeFilters(filters), options: options || {},
+  ipcMain.handle('export:preview', ok((id, filters, options) => callEngine('preview', {
+    id: str(id) || 'kml', filters: sanitizeFilters(filters), options: options || {},
   })));
 
   ipcMain.handle('export:pickDir', ok(async () => {

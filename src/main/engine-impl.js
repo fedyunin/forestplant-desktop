@@ -69,13 +69,11 @@ const METHODS = {
 
   /* ---- export ---- */
   exporters: () => exporters(),
-  preview: ({ filters, options }) => {
-    const o = sanitizeOptions('kml', options || {});
-    return q.preview(filters, {
-      budget: o.budget, split: o.split,
-      vdPoly: o.vdPoly, vdLabels: o.vdLabels,
-      kvPoly: o.kvPoly, kvLabels: o.kvLabels, outline: o.outline,
-    });
+  // Each format says itself what its files will hold, so the estimate is not
+  // a copy of the KML options living in the wrong place.
+  preview: ({ id, filters, options }) => {
+    const exporter = getExporter(id || 'kml');
+    return q.preview(filters, exporter.plan(sanitizeOptions(exporter.id, options || {})));
   },
   runExport: ({ id, filters, options, outDir, lang }) => {
     const exporter = getExporter(id || 'kml');

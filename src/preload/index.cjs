@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('api', {
 
   exportData: {
     list: () => call('export:list'),
-    preview: (filters, options) => call('export:preview', filters, options),
+    preview: (id, filters, options) => call('export:preview', id, filters, options),
     pickDir: () => call('export:pickDir'),
     run: (id, filters, options, outDir) => call('export:run', id, filters, options, outDir),
     onProgress: on('export:progress'),

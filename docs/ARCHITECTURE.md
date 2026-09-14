@@ -144,6 +144,21 @@ A placeholder with no value behind it becomes an empty string, not the literal
 `{poroda}` — a label reading «кв 29 выд {poroda}» in a delivered file looks
 like a broken export rather than like data the source does not have.
 
+### A format describes itself, including its estimate
+
+An exporter is one file in `src/exporters/` plus a line in the registry: it
+declares its name, its settings, how to write, and — since three formats now
+disagree about what a file even costs — what the estimate should count. KML
+splits on a vertex budget; GeoJSON takes a whole forestry however big it is;
+a CSV holds no geometry at all, so counting vertices there would be answering
+a question nobody asked. `plan(options)` returns that, the window asks for an
+estimate by format id, and the line above the button is worded by the format
+too.
+
+The alternative — the estimate knowing about KML's options directly — is what
+the code did at first, and it quietly produced a KML-shaped answer for every
+format the moment a second one existed.
+
 ### The forestry boundary is computed, not taken ready
 
 There is no usable ready layer of forestry boundaries on the server: in
@@ -226,10 +241,10 @@ configs or logs.
    category, an object card with the raw attributes, and SQL as a second way of
    building the same selection: a query returning an id column narrows the
    selection exactly as the filters do.
-2. **Export** — search over the forestries with the group rows pickable (a
-   whole region in one click), five layers that switch on and off separately,
-   label presets and templates, a style editor with a preview, the vertex
-   budget and splitting, an index file of links.
+2. **Export** — KML, GeoJSON or CSV. Search over the forestries with the group
+   rows pickable (a whole region in one click); for KML, five layers that
+   switch on and off separately, label presets and templates, a style editor
+   with a preview, the vertex budget and splitting, an index file of links.
 3. **Settings** — the data folder, credentials, database management (checking
    for updates by fingerprints — count, max OBJECTID, max edit date — without
    downloading), the archive state and the field mapping screen. The interface

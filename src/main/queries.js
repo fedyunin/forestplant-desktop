@@ -325,7 +325,7 @@ export function tables() {
 /* ---------------------------------------------------------------- selection */
 
 export function preview(filters, {
-  budget = VERTEX_BUDGET, split = 'lesnichestvo',
+  budget = VERTEX_BUDGET, split = 'lesnichestvo', perGroupFiles = 1,
   vdPoly = true, vdLabels = true, kvPoly = true, kvLabels = true, outline = true,
 } = {}) {
   const d = need();
@@ -369,6 +369,10 @@ export function preview(filters, {
     vydels += g.n;
     vertices += v + fixed;
     if (split !== 'lesnichestvo') continue;
+    // budget: null means the format has no size limit of its own — GeoJSON and
+    // CSV take a whole forestry in one file however big it is, and GeoJSON can
+    // add a second one for the blocks
+    if (!budget) { files += perGroupFiles; continue; }
     const first = Math.max(budget - fixed, Math.floor(budget / 2));
     files += v <= first ? 1 : 1 + Math.ceil((v - first) / budget);
   }
@@ -376,8 +380,13 @@ export function preview(filters, {
   // export time, so its weight is unknown here, but promising zero files and
   // then writing one is worse than rounding up to one.
   if (split !== 'lesnichestvo') {
-    const draws = vdPoly || vdLabels || kvPoly || kvLabels || outline;
-    files = groups.length === 0 || !draws ? 0 : Math.max(1, Math.ceil(vertices / budget));
+    if (!budget) {
+      // a CSV counts no vertices at all, so «nothing to write» means no rows
+      files = vydels === 0 ? 0 : perGroupFiles;
+    } else {
+      const draws = vdPoly || vdLabels || kvPoly || kvLabels || outline;
+      files = groups.length === 0 || !draws ? 0 : Math.max(1, Math.ceil(vertices / budget));
+    }
   }
 
   return { vydels, vertices, groups: groups.length, estimatedFiles: vydels === 0 ? 0 : files };
@@ -397,6 +406,7 @@ const rowToFeature = (r) => ({
   kvartal: r.kvartal,
   vydel: r.vydel,
   canon: {
+    uchrezhdenie: r.uchrezhdenie,
     ploshad: r.ploshad,
     poroda: r.poroda,
     bonitet: r.bonitet,
@@ -408,7 +418,8 @@ const rowToFeature = (r) => ({
 });
 
 const FEATURE_COLUMNS = `feature.kvartal, feature.vydel, feature.ploshad, feature.poroda,
-  feature.bonitet, feature.tip_lesa, feature.kat_zem, feature.lesnichestvo, feature.oblast`;
+  feature.bonitet, feature.tip_lesa, feature.kat_zem, feature.lesnichestvo,
+  feature.uchrezhdenie, feature.oblast`;
 
 /**
  * The selection in a shape any exporter can use: a list of groups and a read
@@ -445,7 +456,7 @@ export function selection(filters) {
 
       const kv = d.prepare(`
         SELECT k.id, fd.props, fd.geom, k.kvartal, k.vydel, k.ploshad, k.poroda,
-               k.bonitet, k.tip_lesa, k.kat_zem, k.lesnichestvo, k.oblast
+               k.bonitet, k.tip_lesa, k.kat_zem, k.lesnichestvo, k.uchrezhdenie, k.oblast
         FROM kvartal_link l
         JOIN feature k ON k.id = l.feature_id
         JOIN feature_data fd ON fd.feature_id = k.id

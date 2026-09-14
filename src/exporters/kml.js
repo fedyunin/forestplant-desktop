@@ -43,6 +43,7 @@ export default {
   id: 'kml',
   name: 'fmt.kml.name',
   hint: 'fmt.kml.hint',
+  estimate: 'export.estimate',
 
   options: [
     { key: 'split', type: 'select', label: 'opt.split', value: 'lesnichestvo',
@@ -81,6 +82,17 @@ export default {
     { key: 'vdWidth', type: 'number', label: 'opt.width', value: DEFAULT_STYLE.vdWidth, min: 0.5, max: 8, step: 0.1 },
     { key: 'vdFill', type: 'number', label: 'opt.vdFill', value: DEFAULT_STYLE.vdFill, min: 0, max: 1, step: 0.01 },
   ],
+
+  /** What the estimate should count: every layer that is switched on. */
+  plan: (o) => ({
+    split: o.split,
+    budget: o.budget,
+    vdPoly: o.vdPoly,
+    vdLabels: o.vdLabels,
+    kvPoly: o.kvPoly,
+    kvLabels: o.kvLabels,
+    outline: o.outline,
+  }),
 
   /**
    * @param {object} p

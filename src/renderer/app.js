@@ -595,8 +595,9 @@ const refreshPreview = debounce(async () => {
     $('eRun').disabled = true;
     return;
   }
-  // Every layer switched off would write a file with nothing in it
-  if (!o.vdPoly && !o.vdLabels && !o.kvPoly && !o.kvLabels && !o.outline) {
+  // Every layer switched off would write a file with nothing in it. Only KML
+  // has these switches, so the guard asks before it judges.
+  if ('vdPoly' in o && !o.vdPoly && !o.vdLabels && !o.kvPoly && !o.kvLabels && !o.outline) {
     $('eLine').dataset.vydels = 0;
     $('eLine').textContent = t('export.nothingToDraw');
     $('eRun').disabled = true;
@@ -604,14 +605,19 @@ const refreshPreview = debounce(async () => {
   }
   $('eLine').textContent = t('export.counting');
   let p;
-  try { p = await call(window.api.exportData.preview(expFilters(), state.exp.options), t('tab.export')); } catch { return; }
+  try {
+    p = await call(window.api.exportData.preview(
+      state.exp.format, expFilters(), state.exp.options,
+    ), t('tab.export'));
+  } catch { return; }
   if (seq !== previewRun) return;   // a newer run has already answered
   $('eLine').dataset.vydels = p.vydels;
   $('eLine').dataset.vertices = p.vertices;
   $('eLine').dataset.files = p.estimatedFiles;
+  const ex = state.exporters.find((e) => e.id === state.exp.format);
   $('eLine').innerHTML = p.vydels === 0
     ? t('export.nothingMatches')
-    : t('export.estimate', {
+    : t(ex?.estimate || 'export.estimate', {
       vydels: `<b>${fmt(p.vydels)}</b>`,
       vertices: `<b>${fmt(p.vertices)}</b>`,
       files: `<b>${p.estimatedFiles}</b>`,

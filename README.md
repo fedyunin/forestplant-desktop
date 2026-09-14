@@ -1,4 +1,4 @@
-# Forest Fund — export to KML
+# Forest Fund — a local copy you can export
 
 [![checks](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml)
 [![installers](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml)
@@ -6,7 +6,7 @@
 
 A desktop application: it pulls forest fund data out of the GIS
 `forestplant.gharysh.kz`, keeps it locally, and hands selections over as KML
-for Google Earth.
+for Google Earth, GeoJSON for QGIS and ArcGIS, or CSV for Excel.
 
 The GIS itself offers no export, and the services directory is switched off by
 the administrator — the data cannot be taken from there by ordinary means.
@@ -105,7 +105,7 @@ db/               data folder (path set in Settings)
 src/core/         core without Electron: client, geometry, KML, database
 src/main/         main process: window, IPC, queries
 src/renderer/     the window
-src/exporters/    export formats, KML first
+src/exporters/    export formats: KML, GeoJSON, CSV
 test/             tests
 docs/             architecture and the decisions taken
 ```
@@ -120,14 +120,18 @@ changes both rest on it.
 area, species and land category, an object card with the raw attributes, and
 SQL as a second way of building the same selection.
 
-**Export** — search over the forestries, with the region and agency rows
-pickable themselves: one click takes a whole region. Five layers — stand
-polygons, stand labels, block polygons, block labels, forestry outline —
-switch on and off separately, because an overview map of a region needs none
-of the detail and loads in seconds without it. Labels follow a preset or a
-template of your own (`{kv}-{vd} {poroda}`). Colours and line widths have a
-preview, and an estimate of «how many stands, how many vertices, how many
-files» comes before the run and follows the switches.
+**Export** — three formats: KML for Google Earth, GeoJSON for QGIS and ArcGIS,
+CSV for Excel and reports. Search over the forestries, with the region and
+agency rows pickable themselves: one click takes a whole region.
+
+In KML, five layers — stand polygons, stand labels, block polygons, block
+labels, forestry outline — switch on and off separately, because an overview
+map of a region needs none of the detail and loads in seconds without it.
+Labels follow a preset or a template of your own (`{kv}-{vd} {poroda}`), and
+colours and line widths have a preview. GeoJSON writes the geometry with the
+attributes as they are; CSV writes the table, with the delimiter and the UTF-8
+mark Excel needs. An estimate of what the export will weigh comes before the
+run, in the terms of the chosen format.
 
 **Settings** — the data folder, credentials, database management (checking for
 updates by layer fingerprints without downloading, fetching changes, retrying
