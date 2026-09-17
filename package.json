@@ -1,6 +1,6 @@
 {
   "name": "forestplant-desktop",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Desktop app that pulls forest fund data out of the forestplant.gharysh.kz GIS into a local SQLite database — browse, query and export to KML, GeoJSON and CSV",
   "keywords": [

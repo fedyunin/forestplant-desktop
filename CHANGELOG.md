@@ -10,7 +10,7 @@ Installers for every version are on the
 
 Nothing yet.
 
-## [0.4.0] — 2026-09-17
+## [0.4.1] — 2026-09-17
 
 **The repository is open, and the application moved to Electron 44.**
 
@@ -30,6 +30,9 @@ Nothing yet.
   Ubuntu alongside macOS and Windows. One file, no package manager, runs after
   a `chmod +x`.
 - eslint 10.10, globals 17.12 in development.
+
+v0.4.0 was tagged and built, but never published: it went out before the Linux
+build existed, and there was no reason to ship the same release twice.
 
 ## [0.3.0] — 2026-09-14
 
@@ -83,8 +86,8 @@ schemas resolved by pattern across the system's ten different naming
 conventions, and an interface in Russian, English and Kazakh. macOS and
 Windows installers built on GitHub Actions.
 
-[Unreleased]: https://github.com/fedyunin/forestplant-desktop/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.4.0
+[Unreleased]: https://github.com/fedyunin/forestplant-desktop/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.4.1
 [0.3.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.3.0
 [0.2.1]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.2.1
 [0.2.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.2.0
