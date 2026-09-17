@@ -25,6 +25,10 @@ Nothing yet.
   application: the window self-check passes against the real 1.4-million-object
   database, and `better-sqlite3` rebuilds for both macOS architectures under
   the new runtime.
+- **A Linux build.** `electron-builder.yml` had declared an AppImage target
+  all along, but no job ever built it; the release workflow now builds on
+  Ubuntu alongside macOS and Windows. One file, no package manager, runs after
+  a `chmod +x`.
 - eslint 10.10, globals 17.12 in development.
 
 ## [0.3.0] — 2026-09-14

@@ -35,6 +35,7 @@
     "dist": "electron-builder --mac --win --publish never",
     "dist:mac": "electron-builder --mac --publish never",
     "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

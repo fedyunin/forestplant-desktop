@@ -57,5 +57,8 @@ nsis:
   shortcutName: Forest Fund
 
 linux:
+  # Same reason as the other two: no version in the name, so the README links
+  # to releases/latest/download/<name> keep working release after release.
+  artifactName: ForestPlant-linux-x86_64.AppImage
   target: [AppImage]
   category: Utility

@@ -30,6 +30,12 @@ jobs:
             label: Windows
             build: npm run dist:win
             artifacts: dist/*.exe
+          # Linux is an AppImage: one file, no package manager, runs after a
+          # chmod +x. The native module is rebuilt on the runner like the rest.
+          - os: ubuntu-latest
+            label: Linux
+            build: npm run dist:linux
+            artifacts: dist/*.AppImage
 
     steps:
       - uses: actions/checkout@v7

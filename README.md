@@ -37,11 +37,12 @@ server involved.
 | **macOS** — Apple Silicon | [ForestPlant-mac-arm64.dmg](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-mac-arm64.dmg) |
 | **macOS** — Intel | [ForestPlant-mac-x64.dmg](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-mac-x64.dmg) |
 | **Windows** — installer | [ForestPlant-win-x64-setup.exe](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-win-x64-setup.exe) |
+| **Linux** — AppImage | [ForestPlant-linux-x86_64.AppImage](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-linux-x86_64.AppImage) |
 
 macOS 13 (Ventura) or later: Electron 44 dropped macOS 12 in step with
 Chromium. On Monterey the last version that runs is
 [v0.3.0](https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.3.0).
-Windows is unaffected.
+Windows and Linux are unaffected.
 
 Those links always resolve to the newest release — every version is built on
 [GitHub Actions](.github/workflows/release.yml) under the same file names, so
@@ -55,6 +56,8 @@ Developer ID — so the first launch needs a nudge past the OS:
 - **macOS** — right-click the app → **Open**, then confirm. Or, if macOS still
   refuses: `xattr -cr "/Applications/ForestPlant.app"`.
 - **Windows** — *More info* → *Run anyway*.
+- **Linux** — `chmod +x ForestPlant-linux-x86_64.AppImage`, then run it. An
+  AppImage needs no installation and no package manager.
 
 An installed application still needs the data. Point it at a data folder
 someone else has already synced, or give it GIS credentials in Settings and let
@@ -91,15 +94,19 @@ them in the system keychain. For the command line, set `FP_USER` and `FP_PASS`.
 npm run dist       # macOS (DMG for Apple Silicon and Intel) + Windows (installer)
 npm run dist:mac
 npm run dist:win
+npm run dist:linux # AppImage; built on Linux, or in the release workflow
 ```
 
 The finished files land in `dist/` under the same names as the released ones —
 `ForestPlant-mac-arm64.dmg`, `ForestPlant-mac-x64.dmg`,
-`ForestPlant-win-x64-setup.exe`. They carry no version on purpose, so the
-download links above keep working release after release.
+`ForestPlant-win-x64-setup.exe`, `ForestPlant-linux-x86_64.AppImage`. They
+carry no version on purpose, so the download links above keep working release
+after release.
 
-Pushing a `v*` tag builds all three on GitHub and attaches them to a draft
-Release, which stays a draft until someone presses Publish.
+Pushing a `v*` tag builds all four on GitHub — macOS on a Mac runner, Windows
+on a Windows runner, Linux on Ubuntu, each rebuilding the native database
+module for its own platform — and attaches them to a draft Release, which
+stays a draft until someone presses Publish.
 
 Three things that took a long time and must not be touched without a reason:
 
