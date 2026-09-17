@@ -1,6 +1,6 @@
 appId: kz.gharysh.forestplant
 productName: ForestPlant
-copyright: ""
+copyright: Copyright © 2026 Alexey Fedyunin
 
 directories:
   output: dist
@@ -30,6 +30,9 @@ mac:
   # separately, through CFBundleDisplayName.
   extendInfo:
     CFBundleDisplayName: Forest Fund
+  # Electron 44 dropped macOS 12: without this the application installs on
+  # Monterey and dies at startup instead of saying why.
+  minimumSystemVersion: "13.0"
   category: public.app-category.utilities
   target:
     - target: dmg

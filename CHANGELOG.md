@@ -8,7 +8,24 @@ Installers for every version are on the
 
 ## [Unreleased]
 
-- The repository is public, under the [MIT licence](LICENSE).
+Nothing yet.
+
+## [0.4.0] — 2026-09-17
+
+**The repository is open, and the application moved to Electron 44.**
+
+- Published under the [MIT licence](LICENSE), with the documents an open
+  project needs: contributing guide, security policy, code of conduct, issue
+  and pull request templates, and this changelog.
+- **Electron 43 → 44. Requires macOS 13 (Ventura) or later** — Electron 44
+  dropped macOS 12 in step with Chromium, so `minimumSystemVersion` is now
+  declared and Monterey is told why rather than failing at startup. Windows is
+  unaffected: the 32-bit target Electron also dropped was never built here.
+- Checked before shipping, because the checks in CI never launch the
+  application: the window self-check passes against the real 1.4-million-object
+  database, and `better-sqlite3` rebuilds for both macOS architectures under
+  the new runtime.
+- eslint 10.10, globals 17.12 in development.
 
 ## [0.3.0] — 2026-09-14
 
@@ -62,7 +79,8 @@ schemas resolved by pattern across the system's ten different naming
 conventions, and an interface in Russian, English and Kazakh. macOS and
 Windows installers built on GitHub Actions.
 
-[Unreleased]: https://github.com/fedyunin/forestplant-desktop/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/fedyunin/forestplant-desktop/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.4.0
 [0.3.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.3.0
 [0.2.1]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.2.1
 [0.2.0]: https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.2.0
