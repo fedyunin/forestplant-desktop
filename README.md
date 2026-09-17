@@ -105,8 +105,10 @@ after release.
 
 Pushing a `v*` tag builds all four on GitHub — macOS on a Mac runner, Windows
 on a Windows runner, Linux on Ubuntu, each rebuilding the native database
-module for its own platform — and attaches them to a draft Release, which
-stays a draft until someone presses Publish.
+module for its own platform — and publishes a Release with them attached. No
+button is pressed afterwards, so **the changelog entry is written before the
+tag, not after**: the release notes are that version's section of
+[CHANGELOG.md](CHANGELOG.md), with the commit list appended underneath.
 
 Three things that took a long time and must not be touched without a reason:
 

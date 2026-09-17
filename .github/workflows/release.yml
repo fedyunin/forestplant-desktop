@@ -68,13 +68,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # The changelog is the source of the release notes, so the code has to
+      # be here too, not just the built files.
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           path: files
           merge-multiple: true
 
+      # The release publishes itself, so there is no moment afterwards in
+      # which to write its notes by hand. They are the changelog section for
+      # this version, with the relative links made absolute — «LICENSE» means
+      # nothing outside the repository — and the generated commit list is
+      # appended underneath by the action.
+      - name: Take the notes out of the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md \
+            | perl -pe 's{\]\((?!https?://|#)([^)]+)\)}{](https://github.com/$ENV{GITHUB_REPOSITORY}/blob/$ENV{GITHUB_REF_NAME}/$1)}g' \
+            > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::warning::No changelog section for $version — the release goes out with generated notes only"
+          fi
+          cat notes.md
+
       - uses: softprops/action-gh-release@v3
         with:
           files: files/*
-          draft: true      # a draft: to look at before publishing
+          body_path: notes.md
           generate_release_notes: true
+          # Published outright rather than left as a draft: releases here are
+          # cut from a tag deliberately, and the notes are already written.
+          draft: false
+          make_latest: true

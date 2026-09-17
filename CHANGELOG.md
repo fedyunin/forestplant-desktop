@@ -8,7 +8,10 @@ Installers for every version are on the
 
 ## [Unreleased]
 
-Nothing yet.
+- Releases publish themselves. A `v*` tag now builds the four installers and
+  puts out a finished Release rather than a draft waiting on a button, and its
+  notes are this file's section for that version. The practical consequence:
+  the changelog entry has to exist **before** the tag is pushed.
 
 ## [0.4.1] — 2026-09-17
 
