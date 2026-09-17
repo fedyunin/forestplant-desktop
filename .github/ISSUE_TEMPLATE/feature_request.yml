@@ -1,0 +1,23 @@
+name: Feature request
+description: Something the application should do and does not
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where the application gets in the way. The work you are actually doing is more useful here than a proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional — a shape for the answer, if you have one.
+
+  - type: textarea
+    id: now
+    attributes:
+      label: How you handle it today
+      description: Exporting and fixing it by hand, a QGIS step afterwards, doing without — this says how much the gap costs.

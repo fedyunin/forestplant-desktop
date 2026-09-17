@@ -1,0 +1,24 @@
+version: 2
+
+updates:
+  # The application dependencies. Electron and electron-builder decide what the
+  # installers are; better-sqlite3 is a native module and its major is a
+  # rebuild, so those are worth seeing one at a time rather than in a batch.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        patterns: ['eslint', '@eslint/*', 'globals']
+        update-types: [minor, patch]
+
+  # The actions went a whole runtime major out of date unnoticed once already.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

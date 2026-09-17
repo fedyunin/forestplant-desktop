@@ -2,7 +2,9 @@
 
 [![checks](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/ci.yml)
 [![installers](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml/badge.svg)](https://github.com/fedyunin/forestplant-desktop/actions/workflows/release.yml)
-[![releases](https://img.shields.io/badge/releases-latest-1f6feb)](https://github.com/fedyunin/forestplant-desktop/releases/latest)
+[![releases](https://img.shields.io/github/v/release/fedyunin/forestplant-desktop?display_name=tag&color=1f6feb)](https://github.com/fedyunin/forestplant-desktop/releases/latest)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![node](https://img.shields.io/badge/node-%E2%89%A522-5fa04e)](https://nodejs.org)
 
 A desktop application: it pulls forest fund data out of the GIS
 `forestplant.gharysh.kz`, keeps it locally, and hands selections over as KML
@@ -11,8 +13,22 @@ for Google Earth, GeoJSON for QGIS and ArcGIS, or CSV for Excel.
 The GIS itself offers no export, and the services directory is switched off by
 the administrator — the data cannot be taken from there by ordinary means.
 
-The interface speaks Kazakh, Russian and English; the language is chosen in
+The interface speaks Russian, English and Kazakh; the language is chosen in
 Settings and follows the system by default.
+
+## What it needs from you
+
+**Your own GIS account.** The application signs in to the same ArcGIS REST
+endpoint the web client uses, with the login and password you already have,
+and reads exactly what that account is allowed to read. It carries no account
+of its own, ships no credentials, and works around no access control: the
+[47 layers the account has no rights to](#what-you-need-to-know-about-the-data)
+answer 403 and stay empty. What it adds on top is the export the web interface
+does not offer, and a local copy that outlives a session.
+
+Without an account there is still something to run: point the application at a
+data folder someone else has already synced and it works offline, with no
+server involved.
 
 ## Download a build
 
@@ -25,10 +41,8 @@ Settings and follows the system by default.
 Those links always resolve to the newest release — every version is built on
 [GitHub Actions](.github/workflows/release.yml) under the same file names, so
 nothing here needs editing when one ships. Every build is on the
-[releases page](https://github.com/fedyunin/forestplant-desktop/releases).
-
-The repository is private, so the links work only while signed in to GitHub
-with access to it. Without access they answer 404 rather than a download.
+[releases page](https://github.com/fedyunin/forestplant-desktop/releases), and
+what changed in each is in the [changelog](CHANGELOG.md).
 
 The builds are ad-hoc signed but not notarized — that needs a paid Apple
 Developer ID — so the first launch needs a nudge past the OS:
@@ -49,8 +63,8 @@ npm run sync      # fetch from the server and build the database (hours on the f
 npm start         # the application
 ```
 
-The application asks for the credentials itself and stores them in the system
-keychain. For the command line, set `FP_USER` and `FP_PASS`.
+Node 22 or newer. The application asks for the credentials itself and stores
+them in the system keychain. For the command line, set `FP_USER` and `FP_PASS`.
 
 ## Commands
 
@@ -64,6 +78,7 @@ keychain. For the command line, set `FP_USER` and `FP_PASS`.
 | `npm run load -- --reset` | rebuild the database from the archive, offline |
 | `npm test` | core tests |
 | `npm run smoke` | window self-check |
+| `npm run lint` | style |
 
 ## Building
 
@@ -160,3 +175,21 @@ objects, and every label is a vertex too. Files are split automatically, with
 an index file of links written next to them.
 
 More about the decisions taken — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Contributing
+
+Bug reports, layers that come back wrong and pull requests are welcome —
+[CONTRIBUTING.md](CONTRIBUTING.md) has the short version: `npm test` and
+`npm run lint` must pass, and a change to how fields are recognised needs a
+test with the real field name that prompted it.
+
+Found something security-shaped? [SECURITY.md](SECURITY.md) — please do not
+open a public issue for it.
+
+## License
+
+[MIT](LICENSE) © Alexey Fedyunin.
+
+The licence covers this application, not the data it reads: what you may do
+with the forest fund data is settled by your agreement with the GIS operator,
+not by this repository.

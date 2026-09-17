@@ -1,0 +1,52 @@
+name: Wrong data
+description: A stand, block or forestry that came out wrong — numbers, names, links, geometry
+labels: [data]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are the valuable reports. Four times the data was silently wrong
+        in a way that still produced plausible files, and every one of them was
+        found by someone who knew the territory noticing a number was off.
+
+  - type: input
+    id: where
+    attributes:
+      label: Region and forestry
+      placeholder: Kostanay region, Aratsk forestry
+    validations:
+      required: true
+
+  - type: input
+    id: layer
+    attributes:
+      label: Layer
+      description: As it is named in the system, if you know it.
+      placeholder: ВыдПород2_12
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should be there, and what is there instead
+      description: Stand numbers, areas, species, the count of objects — whatever is wrong, with the right value if you know it.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of wrong
+      options:
+        - A number or name is wrong on the objects
+        - Objects are missing, or there are too few
+        - Blocks did not link to their forestry
+        - Geometry is in the wrong place or broken
+        - The export file is wrong, the data on screen is fine
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: schema
+    attributes:
+      label: The field schema
+      description: Settings → field schemas shows which column took which role for this layer. A screenshot of that is often the whole answer.

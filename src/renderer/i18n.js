@@ -1,9 +1,9 @@
 /*
  * Interface translations.
  *
- * Two languages: Russian and English. The dictionary is flat on purpose —
- * a key names the place in the interface, so a missing translation is easy
- * to spot and easy to add.
+ * Three languages: Russian, English and Kazakh. The dictionary is flat on
+ * purpose — a key names the place in the interface, so a missing translation
+ * is easy to spot and easy to add.
  *
  * Strings with numbers take parameters: t('data.objects', { n: 1234 }).
  */

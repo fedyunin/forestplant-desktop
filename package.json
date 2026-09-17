@@ -2,7 +2,28 @@
   "name": "forestplant-desktop",
   "version": "0.3.0",
   "private": true,
-  "description": "Export of forest fund data from the GIS forestplant.gharysh.kz into KML",
+  "description": "Desktop app that pulls forest fund data out of the forestplant.gharysh.kz GIS into a local SQLite database — browse, query and export to KML, GeoJSON and CSV",
+  "keywords": [
+    "gis",
+    "arcgis",
+    "forestry",
+    "kml",
+    "geojson",
+    "google-earth",
+    "electron",
+    "sqlite",
+    "kazakhstan"
+  ],
+  "homepage": "https://github.com/fedyunin/forestplant-desktop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fedyunin/forestplant-desktop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/fedyunin/forestplant-desktop/issues"
+  },
+  "author": "Alexey Fedyunin <fedyunin@ipoint.ru>",
+  "license": "MIT",
   "type": "module",
   "main": "src/main/bootstrap.cjs",
   "scripts": {
@@ -29,7 +50,5 @@
     "electron-builder": "^26.15.3",
     "eslint": "^10.9.0",
     "globals": "^17.11.0"
-  },
-  "author": "KazLP",
-  "license": "UNLICENSED"
+  }
 }

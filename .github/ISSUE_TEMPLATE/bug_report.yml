@@ -1,0 +1,57 @@
+name: Bug report
+description: The application does something wrong, or stops doing anything at all
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        No credentials, please — not in the description, not in a log, not in
+        a screenshot.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS — Apple Silicon
+        - macOS — Intel
+        - Windows
+        - Run from source (npm start)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From the installer file name, or `git rev-parse --short HEAD` when running from source.
+      placeholder: v0.3.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: app.log
+      description: |
+        The startup log, written next to the application settings — it is the
+        only place a crash before the window opens leaves a trace.
+        macOS: `~/Library/Application Support/ForestPlant/app.log`
+        Windows: `%APPDATA%\ForestPlant\app.log`
+      render: text
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Before submitting
+      options:
+        - label: There is no login, password or token anywhere in this report
+          required: true
