@@ -38,6 +38,11 @@ server involved.
 | **macOS** — Intel | [ForestPlant-mac-x64.dmg](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-mac-x64.dmg) |
 | **Windows** — installer | [ForestPlant-win-x64-setup.exe](https://github.com/fedyunin/forestplant-desktop/releases/latest/download/ForestPlant-win-x64-setup.exe) |
 
+macOS 13 (Ventura) or later: Electron 44 dropped macOS 12 in step with
+Chromium. On Monterey the last version that runs is
+[v0.3.0](https://github.com/fedyunin/forestplant-desktop/releases/tag/v0.3.0).
+Windows is unaffected.
+
 Those links always resolve to the newest release — every version is built on
 [GitHub Actions](.github/workflows/release.yml) under the same file names, so
 nothing here needs editing when one ships. Every build is on the
